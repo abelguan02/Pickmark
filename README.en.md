@@ -6,7 +6,7 @@
 
 Pickmark (formerly Tabtrail) is a desktop Chrome extension. It organizes tabs and bookmarks into categories, with local keyword rules, manual adjustments, and optional AI classification. It also keeps daily page lists and estimated browsing time on your device, helping you find your way back to earlier pages.
 
-Current version: **0.1.6 · Preview release**. It is not yet available in the Chrome Web Store. Download the [0.1.6 installation ZIP](https://github.com/abelguan02/Pickmark/releases/download/v0.1.6/Pickmark-0.1.6.zip) and follow the [installation and in-place update guide (Chinese / English)](docs/INSTALL-UPDATE-0.1.6-PUBLIC.md). AI features require your own provider API key. Local rules, manual classification, daily review, and resume browsing work without AI.
+Current version: **0.1.7 · Preview release**. It is not yet available in the Chrome Web Store. Download the [0.1.7 installation ZIP](https://github.com/abelguan02/Pickmark/releases/download/v0.1.7/Pickmark-0.1.7.zip) and follow the [installation and in-place update guide (Chinese / English)](docs/INSTALL-UPDATE-0.1.7.md). AI features require your own provider API key. Local rules, manual classification, daily review, and resume browsing work without AI.
 
 ![Workspaces demo: open tabs organized into topic cards](docs/dashboard-preview-en.png)
 
@@ -134,7 +134,7 @@ Open [the local preview](http://localhost:4173/dashboard.html). Stop the server 
 npm run package
 ```
 
-The package is written to `dist/Pickmark-0.1.6.zip`, with a SHA256 checksum file. Neither previewing nor packaging publishes anything to GitHub.
+The package is written to `dist/Pickmark-0.1.7.zip`, with a SHA256 checksum file. Neither previewing nor packaging publishes anything to GitHub.
 
 For additional preview, browser-test, and packaging instructions, see the [contributing guide (Chinese)](CONTRIBUTING.md). Report ordinary issues and suggestions in this repository’s Issues section. Use fictional pages to reproduce problems, and do not upload API keys or private browsing records.
 

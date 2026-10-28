@@ -19,7 +19,7 @@ const icon=(name,label,attr='')=>`<button type="button" class="tool" aria-label=
 export class OffsetUI{
  constructor(api){
   installHelp(()=>{this.rail(false);if(this.panel==='settings'){focusAI();return;}this.pendingAI=true;$('#settings').click();});
-  this.api=api;this.mode='tabs';this.bookView='folders';this.panel=null;this.filters={tabs:'',bookmarks:''};this.layouts={tabs:'list',bookmarks:'list'};this.queries={tabs:'',bookmarks:''};this.density='compact';this.book=null;this.selected=null;this.previewEnabled=true;this.autoPreview=false;this.bookLoading=false;this.thumbnails=new Map();this.previewToken=0;
+  this.api=api;this.mode='tabs';this.bookView='folders';this.panel=null;this.filters={tabs:'',bookmarks:''};this.layouts={tabs:'list',bookmarks:'list'};this.queries={tabs:'',bookmarks:''};this.density='compact';this.book=null;this.selected=null;this.previewEnabled=true;this.autoPreview=false;this.bookLoading=false;this.thumbnails=new Map();this.previewStates=new Map();this.previewToken=0;
   try{const p=JSON.parse(localStorage.getItem('pickmark-view-v1')||'{}');if(['compact','comfortable'].includes(p.density))this.density=p.density;if(['list','gallery'].includes(p.layout))this.layouts.tabs=p.layout;this.previewEnabled=p.preview!==false;if(p.layout==='cards')localStorage.setItem('pickmark-view-v1',JSON.stringify({...p,layout:'list'}));}catch{}
   const main=$('main.atlas'),header=main.querySelector('header');const legacy=document.createElement('div');legacy.hidden=true;legacy.id='mono-legacy';legacy.append(header);document.body.prepend(legacy);
   const root=document.createElement('div');root.innerHTML=shell;root.querySelector('.brand-logo').innerHTML=brandMark;document.body.prepend(...root.childNodes);$('#mono-placeholder').replaceWith(main);main.id='workspace';main.className='workspace atlas';
@@ -91,12 +91,14 @@ export class OffsetUI{
   document.documentElement.addEventListener('pointerleave',()=>{this.previewPointer=null;this.clearPreview();});
   window.addEventListener('scroll',()=>{this.dismissMovedActions();this.resumePreviewAfterScroll();document.body.classList.toggle('hero-mini',scrollY>100);},{passive:true});
   window.addEventListener('resize',()=>{this.closeActions();this.clearPreview();if(innerWidth>800)this.rail(false);else this.railAccess();this.alignCategories();});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)this.clearPreview();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){this.clearPreview();clearTimeout(this.galleryStatusTimer);}else if(this.api.extension)this.refreshPreviews();});
   window.addEventListener('atlas-color-mode-change',()=>this.color());this.color();this.railAccess();
   if(this.api.extension){
-   chrome.permissions?.onRemoved?.addListener(p=>{void this.syncAutoPreview();if(p.permissions?.includes('bookmarks')){this.book=null;if(this.mode==='bookmarks')this.render();}});
+   chrome.permissions?.onRemoved?.addListener(p=>{void this.syncAutoPreview();this.refreshPreviews();if(p.permissions?.includes('bookmarks')){this.book=null;if(this.mode==='bookmarks')this.render();}});
+   chrome.permissions?.onAdded?.addListener(()=>{void this.syncAutoPreview();this.refreshPreviews();});
    for(const name of ['onCreated','onRemoved','onChanged','onMoved','onChildrenReordered'])chrome.bookmarks?.[name]?.addListener(()=>{if(this.book&&this.mode==='bookmarks')this.refreshBookmarks();});
-   chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='local')return;if(changes['pickmark-thumbnails-v1']){this.thumbnails.clear();this.hydrateGallery();if($('#mono-preview').open&&this.explicitPreview)this.preview(this.explicitPreview.row,true);}if(changes['pickmark-auto-preview-v1'])this.syncAutoPreview();if(changes['pickmark-bookmarks-v1']&&this.book&&this.mode==='bookmarks')this.refreshBookmarks();});
+   chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='local')return;if(changes['pickmark-thumbnails-v1'])this.thumbnails.clear();if(changes['pickmark-thumbnails-v1']||changes.config||changes['pickmark-auto-preview-v1'])this.refreshPreviews();if(changes['pickmark-auto-preview-v1'])this.syncAutoPreview();if(changes['pickmark-bookmarks-v1']&&this.book&&this.mode==='bookmarks')this.refreshBookmarks();});
+   chrome.runtime.onMessage?.addListener((message,sender)=>{if(sender.id===chrome.runtime.id&&message.type==='preview:changed'&&typeof message.url==='string')this.refreshPreviews(message.url);});
    void this.syncAutoPreview();
   }
  }
@@ -272,7 +274,27 @@ export class OffsetUI{
   const date=r.lastSeen||r.firstSeen,time=date?new Date(date).toLocaleDateString(getLanguage()==='en'?'en-US':'zh-CN',{month:'2-digit',day:'2-digit'}):'';
   return `<div class="item" data-row="${E(r.id)}"><button type="button" class="row-origin" data-pm-open="${E(r.id)}" aria-label="${E(r.title)}"><span class="row-origin-text">${fav(r)}<strong>${E(name)}</strong></span></button><button type="button" class="row-stripes" data-pm-open="${E(r.id)}" aria-label="${E(L('打开：','Open: ')+r.title)}">${Array.from({length:12},(_,n)=>`<i aria-hidden="true" style="--weight:${1/(n+2)};--delay:${180+n*12}ms"></i>`).join('')}</button><div class="row-details"><button type="button" class="item-main" data-pm-open="${E(r.id)}"><span class="item-title">${E(title)}${r.manualGroup?`<span class="manual-tag">${L('手动','Manual')}</span>`:''}</span><span class="item-meta">${E(book&&view==='folders'?r.folder:r.domain)}</span></button><span class="row-state mono">${E(time)}</span><span class="row-group">${E(workspaceLabel(r.group))}</span><span class="item-actions">${icon('more',L('页面操作','Page actions'),'data-pm-actions="'+E(r.id)+'" aria-haspopup="true" aria-expanded="false"')}</span></div></div>`;
  }
- previewMarkup(r,blocked=false){const allowed=!blocked&&previewAllowed(r.url,this.api.state()?.config?.excluded||[]),image=allowed&&this.thumbnails.get(r.url);if(image)return `<img class="cached-thumbnail" loading="lazy" decoding="async" src="${E(image)}" alt="${E(r.title)}">`;return `<div class="placeholder-art"><p class="preview-state">${allowed?L('尚未生成预览','Preview not generated yet'):L('此页面不采集预览','Preview capture is excluded')}</p><small>${!allowed?L('邮箱及排除域名不会采集截图','Email and excluded sites are not captured'):this.autoPreview?L('浏览此网页后会自动保存预览','Visit this page to save its preview'):L('可在设置中开启自动预览','Enable automatic previews in Settings')}</small></div>`;}
+ previewText(r,blocked=false){
+  const excluded=blocked||!previewAllowed(r.url,this.api.state()?.config?.excluded||[]);
+  const info=excluded?{state:'unavailable',reason:'excluded'}:this.previewStates.get(r.url)||{state:this.thumbnails.get(r.url)?'saved':'pending',reason:this.api.extension?'checking':'demo'};
+  const title=info.state==='saved'?L('已保存','Saved'):info.state==='generating'?L('正在生成','Generating'):info.state==='error'?L('未能生成预览','Preview failed'):info.state==='unavailable'?L('无法生成预览','Preview unavailable'):L('待浏览','Awaiting visit');
+  const reasons={visit:L('打开此网页，加载完成后停留片刻即可，无需滚到底。','Open this page and stay briefly after it loads. No scrolling is needed.'),ready:L('网页已就绪，等待开始截图。','The page is ready; capture will begin shortly.'),loading:L('正在等待网页加载完成。','Waiting for the page to finish loading.'),foreground:L('请将网页所在的浏览器窗口切到前台。','Bring the page’s browser window to the foreground.'),disabled:L('自动预览未开启，可在设置中开启并授权。','Automatic previews are off. Enable and authorize them in Settings.'),permission:L('缺少截图授权，请在设置中重新开启自动预览并授权。','Screenshot permission is missing. Enable automatic previews in Settings and authorize access.'),paused:L('记录已暂停，恢复记录后才会自动生成。','Recording is paused. Resume recording to generate previews automatically.'),excluded:L('邮箱和排除的网站不会采集预览。','Email and excluded websites are not captured.'),unsupported:L('浏览器内部页面等非网页地址不支持截图。','Browser internal pages and other non-web addresses cannot be captured.'),private:L('无痕窗口不采集预览。','Incognito windows are not captured.'),storage:L('本机存储空间不足，请在设置中清理预览缓存后重试。','Local storage is full. Clear preview cache in Settings and retry.'),timeout:L('截图超时，请重新打开网页或使用手动更新重试。','Capture timed out. Revisit the page or retry with the manual update button.'),changed:L('截图时页面已切换，请回到该网页后重试。','The page changed during capture. Return to this page and retry.'),tooLarge:L('截图超出缓存大小限制，未能保存。','The screenshot exceeded the cache size limit and was not saved.'),capture:L('浏览器未能完成截图，请重新打开网页或手动更新重试。','The browser could not capture this page. Revisit it or retry the manual update.'),status:L('暂时无法读取预览状态，请重新打开预览。','Preview status could not be read. Reopen the preview.'),checking:L('正在检查预览状态。','Checking preview status.'),demo:L('示例模式不会采集网页。','The demo does not capture pages.')};
+  const hint=info.state==='generating'?L('正在截图并保存到本机。','Capturing and saving on this device.'):info.state==='saved'?'':reasons[info.reason]||'';
+  return {state:info.state,title,hint};
+ }
+ previewMarkup(r,blocked=false){
+  const status=this.previewText(r,blocked),image=status.state!=='unavailable'&&this.thumbnails.get(r.url);
+  if(image)return `<img class="cached-thumbnail" loading="lazy" decoding="async" src="${E(image)}" alt="${E(r.title)}"><span class="preview-badge" role="status" data-preview-state="${status.state}">${E(status.state==='error'?L('已保存 · 更新失败','Saved · update failed'):status.title)}${status.hint?`<small>${E(status.hint)}</small>`:''}</span>`;
+  return `<div class="placeholder-art" role="status" data-preview-state="${status.state}"><p class="preview-state">${E(status.title)}</p><small>${E(status.hint)}</small></div>`;
+ }
+ rememberPreviewState(url,info){this.previewStates.delete(url);this.previewStates.set(url,info);while(this.previewStates.size>100)this.previewStates.delete(this.previewStates.keys().next().value);}
+ refreshPreviews(url){
+  if(url)this.previewStates.delete(url);else this.previewStates.clear();
+  if(document.hidden)return;
+  this.hydrateGallery();
+  if($('#mono-preview').open&&this.explicitPreview&&(!url||this.explicitPreview.row.url===url))this.preview(this.explicitPreview.row,true);
+  else if(this.previewAnchor&&$('#inspector').classList.contains('is-visible')){const row=this.rows.find(r=>r.id===this.previewAnchor.dataset.row);if(row&&(!url||row.url===url))this.preview(row);}
+ }
  async syncAutoPreview(){
   if(!this.api.extension)return;const token=this.autoPreviewRequest=(this.autoPreviewRequest||0)+1;
   try{
@@ -287,9 +309,19 @@ export class OffsetUI{
   try{if(enabled&&!await chrome.permissions.request({origins:['<all_urls>']}))return false;await this.api.send({type:'preview:auto',enabled});await this.syncAutoPreview();this.api.toast(enabled?L('自动预览已开启；浏览网页后在本机保存。','Automatic previews enabled; visited pages are saved locally.'):L('自动预览已关闭。','Automatic previews disabled.'));return true;}catch(e){this.api.toast(e.message);return false;}
  }
  async hydrateGallery(){
+  clearTimeout(this.galleryStatusTimer);
   const token=this.galleryToken=(this.galleryToken||0)+1,art=$$('#mono-list .gallery-art[data-preview-url]');
-  if(!this.api.extension||!art.length)return;
-  try{const images=await this.api.send({type:'thumbnail:lookup',urls:art.map(node=>node.dataset.previewUrl)});if(token!==this.galleryToken)return;for(const node of art){if(!node.isConnected)continue;const image=images[node.dataset.previewUrl],title=node.closest('.gallery-card').querySelector('.gallery-copy strong').textContent;this.cacheThumbnail(node.dataset.previewUrl,image||null);if(!image){node.innerHTML=this.previewMarkup({url:node.dataset.previewUrl,title,domain:new URL(node.dataset.previewUrl).hostname});continue;}if(node.querySelector('img')?.getAttribute('src')===image)continue;const img=document.createElement('img');img.className='cached-thumbnail';img.loading='lazy';img.decoding='async';img.alt=title;img.src=image;node.replaceChildren(img);}}catch{}
+  if(!this.api.extension||!art.length||document.hidden)return;
+  const draw=()=>{for(const node of art){if(!node.isConnected)continue;const url=node.dataset.previewUrl,title=node.closest('.gallery-card').querySelector('.gallery-copy strong').textContent;node.innerHTML=this.previewMarkup({url,title});}};
+  try{
+   const states=await this.api.send({type:'preview:states',urls:art.map(node=>node.dataset.previewUrl)});if(token!==this.galleryToken)return;
+   for(const [url,info] of Object.entries(states)){this.rememberPreviewState(url,info);if(!info.savedAt)this.thumbnails.delete(url);}draw();
+   if(Object.values(states).some(info=>info.state==='generating'))this.galleryStatusTimer=setTimeout(()=>this.hydrateGallery(),1500);
+   const urls=art.map(node=>node.dataset.previewUrl).filter(url=>states[url].savedAt);if(!urls.length)return;
+   const images=await this.api.send({type:'thumbnail:lookup',urls});if(token!==this.galleryToken)return;
+   // Render from the batch so galleries larger than the small hover cache stay hydrated.
+   for(const node of art){const url=node.dataset.previewUrl;if(!node.isConnected||!images[url])continue;const title=node.closest('.gallery-card').querySelector('.gallery-copy strong').textContent;this.cacheThumbnail(url,images[url]);node.innerHTML=this.previewMarkup({url,title});}
+  }catch{if(token!==this.galleryToken)return;for(const node of art)this.rememberPreviewState(node.dataset.previewUrl,{state:'error',reason:'status'});draw();}
  }
  cacheThumbnail(url,image){this.thumbnails.delete(url);this.thumbnails.set(url,image);while(this.thumbnails.size>20)this.thumbnails.delete(this.thumbnails.keys().next().value);}
  preview(r,explicit=false){
@@ -300,20 +332,20 @@ export class OffsetUI{
    if(token!==this.previewToken)return;
    if(explicit){
     const focused=$('#mono-preview').contains(document.activeElement)?document.activeElement.id:null;
-    const hint=info.blocked?L('此页面在预览排除范围内，不会采集截图。','This page is excluded from preview capture.'):info.visible?L('只保存当前可见网页，截图保存在本机。','Capture only the visible page; images stay local.'):info.enabled?L('打开此网页并停留片刻，预览会自动保存。不会主动打开其他页面。','Open this page and stay briefly to save its preview. Other pages are never opened automatically.'):L('开启自动预览后，实际浏览网页时生成截图；也可在网页的侧边栏手动保存。','Enable automatic previews to capture pages as you browse, or save manually from the page’s side panel.');
     $('#mono-preview h2').textContent=r.title;
-    $('#mono-preview .mono-preview-body').innerHTML=this.previewMarkup(r,info.blocked)+`<div class="dialog-actions"><button type="button" id="mono-preview-open" class="button primary">${L('打开网页','Open page')}</button>${this.api.extension?`${!info.enabled&&!info.blocked?`<button type="button" id="mono-preview-auto" class="button">${L('开启自动预览','Enable automatic previews')}</button>`:''}${info.visible?`<button type="button" id="mono-capture" class="button">${L('更新当前网页预览','Update visible page preview')}</button>`:''}`:''}</div>`+(this.api.extension?`<p class="help">${hint}</p>`:'');
+    $('#mono-preview .mono-preview-body').innerHTML=this.previewMarkup(r,info.blocked)+`<div class="dialog-actions"><button type="button" id="mono-preview-open" class="button primary">${L('打开网页','Open page')}</button>${this.api.extension?`${!info.enabled&&!info.blocked?`<button type="button" id="mono-preview-auto" class="button">${L('开启自动预览','Enable automatic previews')}</button>`:''}${info.visible?`<button type="button" id="mono-capture" class="button" ${this.captureBusy?'disabled':''}>${L('更新当前网页预览','Update visible page preview')}</button>`:''}`:''}</div>`+(this.api.extension?`<p class="help">${L('只截取当前可见网页，截图保存在本机，不发送给 AI。','Only the visible page is captured. Images stay on this device and are not sent to AI.')}</p>`:'');
     $('#mono-preview-open').onclick=()=>this.open(r);
-    if($('#mono-preview-auto'))$('#mono-preview-auto').onclick=async()=>{if(await this.setAutoPreview(true)){info=await this.api.send({type:'preview:status',url:r.url});draw();}};
-    if($('#mono-capture'))$('#mono-capture').onclick=async event=>{if(this.captureBusy)return;this.captureBusy=true;const button=event.currentTarget;button.disabled=true;try{const image=await this.api.send({type:'thumbnail:capture',url:r.url});this.cacheThumbnail(r.url,image);draw();this.hydrateGallery();}catch(e){this.api.toast(e.message);}finally{this.captureBusy=false;button.disabled=false;}};
+    if($('#mono-preview-auto'))$('#mono-preview-auto').onclick=async()=>{if(await this.setAutoPreview(true)){info=await this.api.send({type:'preview:status',url:r.url});this.rememberPreviewState(r.url,info);draw();}};
+    if($('#mono-capture'))$('#mono-capture').onclick=async()=>{if(this.captureBusy)return;this.captureBusy=true;this.rememberPreviewState(r.url,{state:'generating'});draw();try{const image=await this.api.send({type:'thumbnail:capture',url:r.url});this.cacheThumbnail(r.url,image);info=await this.api.send({type:'preview:status',url:r.url});this.rememberPreviewState(r.url,info);this.hydrateGallery();}catch(e){try{info=await this.api.send({type:'preview:status',url:r.url});this.rememberPreviewState(r.url,info);}catch{this.rememberPreviewState(r.url,{state:'error',reason:'capture'});}this.api.toast(e.message);}finally{this.captureBusy=false;draw();}};
     if(!$('#mono-preview').open)$('#mono-preview').showModal();
     else if(focused)$('#mono-preview').querySelector('[id="'+focused+'"]')?.focus({preventScroll:true});
    }else{$('#inspector').innerHTML='<div class="floating-art">'+this.previewMarkup(r)+'</div><div class="floating-caption">'+E(r.domain)+'</div>';$('#inspector').classList.add('is-visible');$('#inspector').setAttribute('aria-hidden','false');this.positionPreview();}
+   clearTimeout(this.previewStatusTimer);if(this.api.extension&&this.previewStates.get(r.url)?.state==='generating'&&!document.hidden)this.previewStatusTimer=setTimeout(()=>{if(token===this.previewToken)this.preview(r,explicit);},1500);
   };draw();
-  if(explicit&&this.api.extension)this.api.send({type:'preview:status',url:r.url}).then(value=>{if(token!==this.previewToken)return;info=value;draw();}).catch(()=>{});
-  if(this.api.extension&&!this.thumbnails.has(r.url))this.api.send({type:'thumbnail:get',url:r.url}).then(image=>{if(token!==this.previewToken)return;this.cacheThumbnail(r.url,image);draw();}).catch(()=>{});
+  if(this.api.extension)this.api.send({type:'preview:status',url:r.url}).then(value=>{if(token!==this.previewToken)return;info=value;this.rememberPreviewState(r.url,value);if(!value.savedAt)this.thumbnails.delete(r.url);draw();}).catch(()=>{if(token!==this.previewToken)return;this.rememberPreviewState(r.url,{state:'error',reason:'status'});draw();});
+  if(this.api.extension&&!this.thumbnails.has(r.url))this.api.send({type:'thumbnail:get',url:r.url}).then(image=>{if(token!==this.previewToken)return;this.cacheThumbnail(r.url,image);draw();}).catch(()=>{if(token!==this.previewToken)return;this.rememberPreviewState(r.url,{state:'error',reason:'status'});draw();});
  }
- clearPreview(){this.previewToken++;clearTimeout(this.hoverTimer);clearTimeout(this.scrollPreviewTimer);this.previewAnchor=null;$$('.item.is-hovered,.gallery-card.is-hovered').forEach(r=>r.classList.remove('is-hovered'));$('#inspector')?.classList.remove('is-visible');$('#inspector')?.setAttribute('aria-hidden','true');}
+ clearPreview(){this.previewToken++;clearTimeout(this.hoverTimer);clearTimeout(this.scrollPreviewTimer);clearTimeout(this.previewStatusTimer);this.previewAnchor=null;$$('.item.is-hovered,.gallery-card.is-hovered').forEach(r=>r.classList.remove('is-hovered'));$('#inspector')?.classList.remove('is-visible');$('#inspector')?.setAttribute('aria-hidden','true');}
  resumePreviewAfterScroll(){
   this.clearPreview();
   if((!this.previewPointer&&!this.keyboardNavigation)||document.hidden)return;

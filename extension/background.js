@@ -10,7 +10,7 @@ import {organize} from './ai.js?v=20260917-15';
 import {requestRecordsSignature} from './classification-request.js';
 import {writeLocal,isStorageCapacityError} from './storage-budget.js';
 import {thumbnailWorker} from './thumbnail-worker.js';
-import {PREVIEW_AUTO_KEY,previewAllowed} from './thumbnails.js';
+import {PREVIEW_AUTO_KEY} from './thumbnails.js';
 import {historyCandidates,UNGROUPED} from './core.js?v=20260917-15';
 import {retainVisits} from './activity.js';
 import {activityWorker} from './activity-worker.js';
@@ -121,12 +121,7 @@ async function handle(message) {
     if(message.enabled)previews.schedule();else previews.cancel();
     return true;
   }
-  if(message.type==='preview:status'){
-    const data=await chrome.storage.local.get(PREVIEW_AUTO_KEY),config=await savedConfig();
-    const authorized=await chrome.permissions.contains({origins:['<all_urls>']});
-    const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});
-    return {enabled:data[PREVIEW_AUTO_KEY]===true&&authorized,authorized,blocked:!!message.url&&!previewAllowed(message.url,config.excluded),visible:!!tab&&!tab.incognito&&tab.url===message.url&&previewAllowed(tab.url,config.excluded)};
-  }
+  if(message.type==='thumbnail:capture')return previews.captureFor(message,await savedConfig());
   if(message.type?.startsWith('thumbnail:'))return handleThumbnail(message,chrome,await savedConfig());
   if(message.type?.startsWith('bookAI:'))return bookAI(message);
   if(message.type?.startsWith('bookmarks:'))return handleBookmarks(message,chrome,(await savedConfig()).excluded);
@@ -329,6 +324,10 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     serial(()=>activity.sample({mediaMessage:{tab:sender.tab,frameId:sender.frameId,playing:message.playing}})).then(()=>reply({value:true}),()=>reply({value:false}));return true;
   }
   if(sender.id!==chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL(''))) return false;
+  // Status is read-only: it must remain responsive while capture owns the write queue.
+  if(message.type==='preview:status'||message.type==='preview:states'){
+    (message.type==='preview:states'?previews.states(message.urls):previews.status(message.url)).then(value=>reply({value}),error=>reply({error:error.message}));return true;
+  }
   serial(()=>{setLanguage(message.locale);return handle(message);}).then(value=>value?.pending??value).then(value=>reply({value}),error=>reply({error:error.message}));
   return true;
 });

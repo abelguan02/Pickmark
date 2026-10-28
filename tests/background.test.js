@@ -18,6 +18,27 @@ chrome.action={onClicked:event()};
 chrome.alarms={async get(){return undefined;},async create(name,options){maintenanceAlarms.push({name,...options});},onAlarm:event()};
 await import('../extension/background.js');
 const send=input=>{const message=input.type==='settings'&&!Object.hasOwn(input,'expectedSettings')?{...input,expectedSettings:settingsSignature(local.config)}:input;return new Promise((resolve,reject)=>chrome.runtime.onMessage.listeners[0](message,{id:'test',url:'chrome-extension://test/dashboard.html'},response=>response.error?reject(new Error(response.error)):resolve(response.value)));};
+test('preview status stays readable while a real manual capture holds the write queue',async()=>{
+ const saved=structuredClone(local),beforeTabs=tabs,permissions=chrome.permissions,getWindow=chrome.windows.getLastFocused,getTab=chrome.tabs.get,captureTab=chrome.tabs.captureVisibleTab;
+ let release,started=false;
+ const held=new Promise(resolve=>release=resolve);
+ try{
+  local.config=defaults();local['pickmark-auto-preview-v1']=true;
+  tabs=[{id:100,windowId:9,url:'https://preview-status.test/',active:true,status:'complete'}];
+  chrome.permissions={contains:async()=>true};chrome.windows.getLastFocused=async()=>({id:9,focused:true});chrome.tabs.get=async()=>tabs[0];
+  chrome.tabs.captureVisibleTab=async()=>{started=true;await held;return 'data:image/jpeg;base64,YQ==';};
+  const capture=send({type:'thumbnail:capture',url:tabs[0].url});while(!started)await new Promise(resolve=>setImmediate(resolve));
+  let deadline;
+  try{
+   const status=await Promise.race([send({type:'preview:status',url:tabs[0].url}),new Promise((resolve,reject)=>{deadline=setTimeout(()=>reject(Error('Status blocked behind capture')),200);})]);
+   assert.equal(status.state,'generating');
+  }finally{clearTimeout(deadline);release();await capture;}
+  assert.equal((await send({type:'preview:status',url:tabs[0].url})).state,'saved');
+ }finally{
+  release();for(const key of Object.keys(local))delete local[key];Object.assign(local,saved);tabs=beforeTabs;
+  chrome.permissions=permissions;chrome.windows.getLastFocused=getWindow;chrome.tabs.get=getTab;chrome.tabs.captureVisibleTab=captureTab;
+ }
+});
 test('daily alarm removes expired data even if recording is paused',async()=>{
  const saved=structuredClone(local),beforeTabs=tabs;
  try{

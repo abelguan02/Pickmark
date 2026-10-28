@@ -24,7 +24,7 @@ async function shrinkImage(image){
   return 'data:image/jpeg;base64,'+btoa(binary);
  }finally{bitmap.close();}
 }
-export async function handleThumbnail(message,api,config,{shouldSave=()=>true}={}){
+export async function handleThumbnail(message,api,config,{shouldSave=()=>true,captureTimeoutMs=15000}={}){
  const stored=(await api.storage.local.get(THUMBNAIL_KEY))[THUMBNAIL_KEY]||{};
  const cache=retainThumbnails(stored,config.excluded);
  if(message.type==='thumbnail:lookup'){
@@ -37,18 +37,25 @@ export async function handleThumbnail(message,api,config,{shouldSave=()=>true}={
  }
  if(message.type!=='thumbnail:capture')throw Error('未知预览操作');
  const [tab]=await api.tabs.query({active:true,lastFocusedWindow:true});
- if(!tab||tab.incognito||tab.url!==url.href)throw Error('请在该网页当前可见时，通过侧边栏保存预览');
- let screenshot;
- try{screenshot=await api.tabs.captureVisibleTab(tab.windowId,{format:'jpeg',quality:85});}
- catch(error){
-  if(/permission|activeTab|all_urls/i.test(error.message))throw Error('请点击网页上的浏览器工具栏插件图标后重试，或在设置中开启自动预览并授权截图。 / Click the extension toolbar icon on the page, or authorize automatic previews in Settings.');
-  throw error;
+ if(!tab||tab.incognito||tab.url!==url.href)throw Object.assign(Error('请在该网页当前可见时，通过侧边栏保存预览'),{code:'PAGE_CHANGED'});
+ let image,deadline,expired=false;
+ const timeoutError=()=>Object.assign(Error('Preview capture timed out'),{code:'CAPTURE_TIMEOUT'});
+ try{
+  // The deadline covers image production only. Storage writes must retain the
+  // background queue until they settle, so a timeout cannot race a later cleanup.
+  image=await Promise.race([
+   (async()=>{const screenshot=await api.tabs.captureVisibleTab(tab.windowId,{format:'jpeg',quality:85});if(expired)throw timeoutError();return shrinkImage(screenshot);})(),
+   new Promise((resolve,reject)=>{deadline=setTimeout(()=>{expired=true;reject(timeoutError());},captureTimeoutMs);})
+  ]);
  }
- const image=await shrinkImage(screenshot);
+ catch(error){
+  if(/permission|activeTab|all_urls/i.test(error.message))throw Object.assign(Error('请点击网页上的浏览器工具栏插件图标后重试，或在设置中开启自动预览并授权截图。 / Click the extension toolbar icon on the page, or authorize automatic previews in Settings.'),{code:'CAPTURE_PERMISSION'});
+  throw error;
+ }finally{clearTimeout(deadline);}
  const current=await api.tabs.get(tab.id);
  const [active]=await api.tabs.query({active:true,lastFocusedWindow:true});
- if(!current.active||current.url!==url.href||active?.id!==tab.id||!shouldSave())throw Error('当前页面已变化，未保存缩略图');
+ if(!current.active||current.url!==url.href||active?.id!==tab.id||!shouldSave())throw Object.assign(Error('当前页面已变化，未保存缩略图'),{code:'PAGE_CHANGED'});
  cache[url.href]={image,at:Date.now()};const next=retainThumbnails(cache,config.excluded);
- if(!next[url.href])throw Error('缩略图过大，未保存');
+ if(!next[url.href])throw Object.assign(Error('缩略图过大，未保存'),{code:'CAPTURE_TOO_LARGE'});
  await writeLocal({[THUMBNAIL_KEY]:next},api);return image;
 }

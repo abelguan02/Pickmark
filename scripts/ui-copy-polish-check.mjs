@@ -56,7 +56,7 @@ try{
   assert.ok(await p.locator('#inspector .preview-state').isVisible());
   assert.equal(await p.locator('#inspector .placeholder-art strong,#inspector .placeholder-art .mono').count(),0);
   assert.equal(await p.locator('#inspector').evaluate(e=>getComputedStyle(e).zIndex),'-1');
-  assert.match(await p.locator('#inspector .preview-state').innerText(),lang==='en'?/Preview not generated/:/尚未生成预览/);
+  assert.match(await p.locator('#inspector .preview-state').innerText(),lang==='en'?/Awaiting visit/:/待浏览/);
   if(width===700)await p.screenshot({path:`/tmp/copy-polish-preview-${lang}-${theme}.png`});cases++;
  }
  // Bookmark classification terminology and panel status use the same source-independent UI.

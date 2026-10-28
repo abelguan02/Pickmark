@@ -53,9 +53,9 @@ try {
  await context.route('**/offset-ui.js',async route=>{
   const response=await route.fetch();let source=await response.text();
   const sample='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><rect width="640" height="420" fill="#356acc"/><text x="40" y="80" fill="white" font-size="30">SIMULATED PREVIEW</text></svg>');
-  source=source.replace('this.thumbnails=new Map();',`this.thumbnails=new Map([['https://github.com/openai',${JSON.stringify(sample)}]]);`);
-  // Use the first demo row URL without depending on a specific fixture domain path.
-  source=source.replace('image=allowed&&this.thumbnails.get(r.url)','image=allowed&&'+JSON.stringify(sample));
+  // Seed the row actually being rendered, independently of demo URL paths.
+  assert.ok(source.includes('previewMarkup(r,blocked=false){'),'Preview fixture insertion point exists');
+  source=source.replace('previewMarkup(r,blocked=false){',`previewMarkup(r,blocked=false){this.cacheThumbnail(r.url,${JSON.stringify(sample)});`);
   await route.fulfill({response,body:source});
  });
  await p.reload();await p.locator('.item').first().waitFor();await p.mouse.move(1,1);await p.locator('.item').first().hover();await p.waitForTimeout(900);

@@ -50,16 +50,20 @@ try{
   await worker.evaluate(async()=>{previewFixture.hold=false;previewFixture.failure=false;await chrome.storage.local.set({'pickmark-thumbnails-v1':{}});});
   await p.evaluate(()=>previewReviewUI.preview(previewReviewUI.rows[0],true));
   await p.locator('#mono-preview [data-preview-state=pending]').waitFor();
-  assert.match(await p.locator('#mono-preview .preview-state').textContent(),lang==='zh'?/待浏览/:/Awaiting visit/);
+  assert.equal(await p.locator('#mono-preview .preview-state').textContent(),lang==='zh'?'待浏览':'Awaiting visit');
+  assert.equal(await p.locator('#mono-preview .placeholder-art small,#mono-preview .mono-preview-body>.help').count(),0,'Normal previews have no repeated explanation');
   await worker.evaluate(()=>{previewFixture.hold=true;globalThis.previewTask=previewReviewWorker.captureFor({type:'thumbnail:capture',url:previewFixture.url},{recording:true,excluded:[]}).catch(error=>{previewFixture.error=error.code;});});
   await p.locator('#mono-preview [data-preview-state=generating]').waitFor();
-  assert.match(await p.locator('#mono-preview .preview-state').textContent(),lang==='zh'?/正在生成/:/Generating/);
+  assert.equal(await p.locator('#mono-preview .preview-state').textContent(),lang==='zh'?'正在生成':'Generating');
+  assert.equal(await p.locator('#mono-preview .placeholder-art small').count(),0);
   await worker.evaluate(async()=>{previewFixture.hold=false;previewFixture.release();await previewTask;});
   await p.locator('#mono-preview img').waitFor();await p.locator('#mono-preview [data-preview-state=saved]').waitFor();
-  assert.match(await p.locator('#mono-preview .preview-badge').textContent(),lang==='zh'?/已保存/:/Saved/);
+  assert.equal(await p.locator('#mono-preview .preview-badge').textContent(),lang==='zh'?'已保存':'Saved');
+  assert.equal(await p.locator('#mono-preview .preview-badge small').count(),0);
   await worker.evaluate(async()=>{previewFixture.failure=true;await previewReviewWorker.captureFor({type:'thumbnail:capture',url:previewFixture.url},{recording:true,excluded:[]}).catch(()=>{});});
   await p.locator('#mono-preview [data-preview-state=error]').waitFor();
-  assert.match(await p.locator('#mono-preview .preview-badge').textContent(),lang==='zh'?/浏览器未能完成截图/:/browser could not capture/);
+  assert.equal(await p.locator('#mono-preview .preview-badge').textContent(),lang==='zh'?'更新失败：浏览器未能完成截图':'Update failed: Browser could not capture this page');
+  assert.equal(await p.locator('#mono-preview .preview-badge').evaluate(e=>e.childElementCount),0,'Failure is one message rather than a title and description');
   assert.equal(await p.locator('#mono-preview img').count(),1,'A failed refresh retains the saved screenshot');
   assert.equal(await p.locator('#mono-preview').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   if(mode==='tabs'&&((width===320&&lang==='en'&&theme==='light')||(width===1280&&lang==='zh'&&theme==='dark')))await p.screenshot({path:`/tmp/preview-status-${lang}-${theme}-${width}.png`});
@@ -75,11 +79,13 @@ try{
  await p.locator('#language-zh').evaluate(e=>e.click());
  await p.evaluate(()=>previewReviewUI.preview(previewReviewUI.rows[0],true));
  await worker.evaluate(async()=>{const {config}=await chrome.storage.local.get('config');await chrome.storage.local.set({config:{...config,recording:false}});});
- await p.waitForFunction(()=>document.querySelector('#mono-preview')?.textContent.includes('恢复记录'));
+ await p.waitForFunction(()=>document.querySelector('#mono-preview')?.textContent.includes('记录已暂停'));
  await worker.evaluate(async()=>{const {config}=await chrome.storage.local.get('config');await chrome.storage.local.set({config:{...config,recording:true}});previewFixture.authorized=false;});
  await p.evaluate(()=>previewReviewUI.refreshPreviews());await p.waitForFunction(()=>document.querySelector('#mono-preview')?.textContent.includes('缺少截图授权'));
+ assert.match(await p.locator('[data-preview-authorization]').textContent(),/仅截图当前可见网页.*仅存本机/);
  await worker.evaluate(()=>{previewFixture.authorized=true;previewFixture.hold=true;globalThis.previewTask=previewReviewWorker.captureFor({type:'thumbnail:capture',url:previewFixture.url},{recording:true,excluded:[]}).catch(error=>{previewFixture.error=error.code;});});
  await p.locator('#mono-preview [data-preview-state=generating]').waitFor();await p.locator('#mono-preview [data-preview-state=error]').waitFor();
+ assert.equal(await p.locator('[data-preview-authorization]').count(),0,'Authorization detail is not repeated once permission is granted');
  assert.match(await p.locator('#mono-preview').textContent(),/截图超时/);
  await worker.evaluate(async()=>{previewFixture.hold=false;previewFixture.release();await previewTask;});
  const after=await worker.evaluate(()=>chrome.storage.local.get(['records','pickmark-bookmarks-v1']));
@@ -87,5 +93,5 @@ try{
  const assignments=data=>data.records.map(({lastSeen,...record})=>record);
  assert.deepEqual(assignments(after),assignments(saved),'Preview updates preserve records and manual assignments; normal browsing may advance lastSeen');
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
- console.log(`PASS ${cases} extension UI cases: tabs/bookmarks, zh/en, light/dark, 320/1280px; live pending/generating/saved/error, retry, gallery invalidation, permission/pause/timeout reasons, no external pages or personal data`);
+ console.log(`PASS ${cases} extension UI cases: tabs/bookmarks, zh/en, light/dark, 320/1280px; concise live states and failure reasons, contextual authorization, retry, gallery invalidation, no external pages or personal data`);
 }finally{if(context)await context.close();fs.rmSync(temp,{recursive:true,force:true});}

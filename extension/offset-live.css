@@ -389,9 +389,7 @@ html body .placeholder-art .preview-state{font-size:14px;font-weight:600;line-he
 html body .placeholder-art small{display:block;line-height:1.65;overflow-wrap:anywhere}
 html body :is(.floating-art,.gallery-art){position:relative}
 html body .preview-badge{position:absolute;right:10px;bottom:10px;max-width:calc(100% - 20px);padding:5px 8px;background:var(--paper);color:var(--ink);font-size:10px;line-height:1.5;overflow-wrap:anywhere}
-html body .preview-badge small{display:block;font-size:10px}
 html body #mono-preview .preview-badge{position:static;display:block;max-width:100%;margin:8px 0;padding:0;font-size:12px}
-html body #mono-preview .preview-badge small{font-size:12px}
 html body .preview-capture-details{margin-top:10px}
 html body .preview-capture-details summary{font-size:11px;letter-spacing:0;cursor:pointer}
 html body .settings-disclosure summary:focus-visible,html body .preview-capture-details summary:focus-visible{outline:2px solid var(--ink);outline-offset:4px}

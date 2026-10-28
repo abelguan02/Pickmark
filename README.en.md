@@ -6,7 +6,7 @@
 
 Pickmark (formerly Tabtrail) is a desktop Chrome extension. It organizes tabs and bookmarks into categories, with local keyword rules, manual adjustments, and optional AI classification. It also keeps daily page lists and estimated browsing time on your device, helping you find your way back to earlier pages.
 
-Current version: **0.1.6 · Local preview release**. It is not yet available in the Chrome Web Store. Install from source or the release ZIP; existing users should follow the [in-place update guide (Chinese)](docs/INSTALL-UPDATE-0.1.6.md). AI features require your own provider API key. Local rules, manual classification, daily review, and resume browsing work without AI.
+Current version: **0.1.6 · Preview release**. It is not yet available in the Chrome Web Store. Download the [0.1.6 installation ZIP](https://github.com/abelguan02/Pickmark/releases/download/v0.1.6/Pickmark-0.1.6.zip) and follow the [installation and in-place update guide (Chinese / English)](docs/INSTALL-UPDATE-0.1.6-PUBLIC.md). AI features require your own provider API key. Local rules, manual classification, daily review, and resume browsing work without AI.
 
 ![Workspaces demo: open tabs organized into topic cards](docs/dashboard-preview-en.png)
 

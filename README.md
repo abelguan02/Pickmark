@@ -6,7 +6,7 @@
 
 拾签（Pickmark，原名 Tabtrail）是一个桌面 Chrome 扩展。它按分类呈现标签页和书签，支持本地关键词规则、人工调整和可选 AI 分类；同时在本机记录每日页面清单与浏览时间估算，帮助你找回之前的内容。
 
-当前版本：**0.1.7 · 体验版**。尚未上架 Chrome Web Store，可直接下载 [0.1.7 安装包](https://github.com/abelguan02/Pickmark/releases/download/v0.1.7/Pickmark-0.1.7.zip)，按[安装与原目录更新说明](docs/INSTALL-UPDATE-0.1.7.md)加载。AI 需要你自己的供应商 API Key；不配置 AI 也能使用本地规则、手动分类、回顾和继续浏览。
+当前版本：**0.1.8 · 体验版**。尚未上架 Chrome Web Store，可直接下载 [0.1.8 安装包](https://github.com/abelguan02/Pickmark/releases/download/v0.1.8/Pickmark-0.1.8.zip)，按[安装与原目录更新说明](docs/INSTALL-UPDATE-0.1.8.md)加载。AI 需要你自己的供应商 API Key；不配置 AI 也能使用本地规则、手动分类、回顾和继续浏览。
 
 ![工作区演示：按主题排列的标签卡片](docs/dashboard-preview.png)
 

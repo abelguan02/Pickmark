@@ -12,6 +12,10 @@ try{
   // A rejected synthetic save exercises the UI error path without touching real storage.
   await c.route('**/dashboard.js*',async r=>{const response=await r.fetch();await r.fulfill({response,body:(await response.text()).replace('async function send(message){',"async function send(message){if(message.type==='settings'&&window.reviewRejectSave)throw new Error('SIMULATED_SAVE_FAILURE');")});});
   const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
+  const previewBox=async()=>{
+   await p.waitForFunction(()=>{const panel=document.querySelector('#inspector');return panel?.classList.contains('is-visible')&&panel.getAnimations().every(animation=>animation.playState==='finished');});
+   return p.locator('#inspector').boundingBox();
+  };
   await p.goto(base+'/dashboard.html');await p.locator('.item').first().waitFor();
   await p.locator('#language-'+lang).evaluate(e=>e.click());await p.evaluate(t=>window.atlasColorMode.set(t),theme);
   await p.locator('#settings').evaluate(e=>e.click());
@@ -55,12 +59,12 @@ try{
   for(const source of ['tabs','bookmarks']){
    if(source==='bookmarks'){await p.locator('[data-mode=bookmarks]').click();await p.locator('[data-pm=connect]').click();}
    assert.ok(await p.locator('#statusbar').isVisible(),'Row status returns after saving settings');
-   await p.evaluate(()=>scrollTo(0,0));await p.mouse.move(1,1);const first=p.locator('.item').first();await first.hover();await p.waitForTimeout(850);
-   const firstPosition=await p.locator('#inspector').boundingBox();
+   await p.evaluate(()=>scrollTo(0,0));await p.mouse.move(1,1);const first=p.locator('.item').first();await first.hover();
+   const firstPosition=await previewBox();
    const boundary=await first.evaluate(e=>Math.max(1,Math.floor(document.querySelector('#inspector .floating-art').getBoundingClientRect().height/e.getBoundingClientRect().height)));
-   await p.locator('.item').nth(boundary).hover();await p.waitForTimeout(850);
-   const nextPosition=await p.locator('#inspector').boundingBox();assert.ok(nextPosition.y>firstPosition.y+10,'Next group still moves down after save/reload');
-   await first.hover();await p.waitForTimeout(850);assert.ok(Math.abs((await p.locator('#inspector').boundingBox()).y-firstPosition.y)<1,'Reverse traversal restores its group');
+   await p.locator('.item').nth(boundary).hover();
+   const nextPosition=await previewBox();assert.ok(nextPosition.y>firstPosition.y+10,'Next group still moves down after save/reload');
+   await first.hover();const backPosition=await previewBox();assert.ok(Math.abs(backPosition.y-firstPosition.y)<1,`Reverse traversal restores its group: ${lang}/${theme}/${source}`);
    assert.equal(await p.locator('#inspector').evaluate(e=>getComputedStyle(e).zIndex),'-1');
    assert.equal(await first.locator('.row-details').evaluate(e=>getComputedStyle(e,'::before').mixBlendMode),'difference');
   }

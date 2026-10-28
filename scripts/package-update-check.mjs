@@ -12,7 +12,7 @@ const executable=process.env.CHROMIUM_EXECUTABLE;
 assert.ok(executable,'Set CHROMIUM_EXECUTABLE');
 const version=JSON.parse(fs.readFileSync(root+'/extension/manifest.json')).version;
 const archive=root+`/dist/Pickmark-${version}.zip`;
-const baselineArchive=process.env.UPDATE_BASELINE_ARCHIVE||root+'/dist/Pickmark-0.1.6.zip';
+const baselineArchive=process.env.UPDATE_BASELINE_ARCHIVE||root+'/dist/Pickmark-0.1.7.zip';
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'pickmark-package-update-'));
 const folder=temp+'/extension';fs.mkdirSync(folder);
 execFileSync('unzip',['-q',baselineArchive,'-d',folder]);

@@ -15,8 +15,8 @@ export function thumbnailWorker({api,serial,delayMs=1100,captureTimeoutMs=15000}
   while(attempts.size>100)attempts.delete(attempts.keys().next().value);
   notify(url);
  }
- async function captureFor(message,config){
-  const token=generation,attempt={state:'generating'};
+ async function captureFor(message,config,{automatic=false}={}){
+  const token=generation,attempt={state:'generating',automatic};
   remember(message.url,attempt);
   try{
    const image=await handleThumbnail(message,api,config,{shouldSave:()=>token===generation,captureTimeoutMs});
@@ -25,7 +25,7 @@ export function thumbnailWorker({api,serial,delayMs=1100,captureTimeoutMs=15000}
   }catch(error){
    if(token===generation&&attempts.get(message.url)===attempt){
     const reason=isStorageCapacityError(error)?'storage':({CAPTURE_TIMEOUT:'timeout',CAPTURE_PERMISSION:'permission',PAGE_CHANGED:'changed',CAPTURE_TOO_LARGE:'tooLarge'})[error.code]||'capture';
-    remember(message.url,{state:'error',reason});
+    remember(message.url,{state:'error',reason,automatic});
    }
    throw error;
   }
@@ -44,7 +44,8 @@ export function thumbnailWorker({api,serial,delayMs=1100,captureTimeoutMs=15000}
   const common={...base,blocked,visible,savedAt:c.cache[url]?.at||null};
   if(blocked)return {...common,state:'unavailable',reason:webUrl(url)?'excluded':'unsupported'};
   const attempt=attempts.get(url);
-  if(attempt&&c.config.recording&&(c.requested?c.authorized:true))return {...common,...attempt};
+  // Automatic-capture settings must not hide the result of an explicit manual request.
+  if(attempt&&(!attempt.automatic||(c.config.recording&&c.requested&&c.authorized)))return {...common,state:attempt.state,reason:attempt.reason};
   if(c.cache[url])return {...common,state:'saved'};
   if(!c.config.recording)return {...common,state:'unavailable',reason:'paused'};
   if(!c.requested)return {...common,state:'unavailable',reason:'disabled'};
@@ -74,7 +75,7 @@ export function thumbnailWorker({api,serial,delayMs=1100,captureTimeoutMs=15000}
   if(now-lastAttempt<1000||now-(cache[THUMBNAIL_KEY]?.[tab.url]?.at||0)<300000)return;
   lastAttempt=now;
   if(token!==generation)return;
-  return captureFor({type:'thumbnail:capture',url:tab.url},config);
+  return captureFor({type:'thumbnail:capture',url:tab.url},config,{automatic:true});
  }
  function cancel(){generation++;clearTimeout(timer);for(const [url,attempt] of attempts)if(attempt.state==='generating'){attempts.delete(url);notify(url);}}
  function schedule(){cancel();timer=setTimeout(()=>serial(capture).catch(()=>{/* Failure is available through preview status. */}),delayMs);timer.unref?.();}

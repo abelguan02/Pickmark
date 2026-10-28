@@ -24,13 +24,15 @@ try{
  let worker=context.serviceWorkers()[0];if(!worker)worker=await context.waitForEvent('serviceworker');
  const origin='chrome-extension://'+new URL(worker.url()).hostname;
  await worker.evaluate(async({config,day})=>{
-  globalThis.previewFixture={url:'https://preview.example/page',failure:false,hold:false,authorized:true,focused:true};
+  globalThis.previewFixture={url:'https://preview.example/page',failure:false,hold:false,authorized:true,focused:true,captures:0,storageFull:false};
   const f=previewFixture;
   chrome.permissions.contains=async()=>f.authorized;
   chrome.windows.getLastFocused=async()=>({id:9,focused:f.focused});
   const tab=()=>({id:100,windowId:9,active:true,status:'complete',url:f.url,title:'Synthetic preview',incognito:false});
   chrome.tabs.query=async()=>[tab()];chrome.tabs.get=async()=>tab();
-  chrome.tabs.captureVisibleTab=async()=>{if(f.failure)throw Error('Synthetic browser capture failure');if(f.hold)await new Promise(resolve=>f.release=resolve);return f.image;};
+  chrome.tabs.captureVisibleTab=async()=>{f.captures++;if(f.failure)throw Error('Synthetic browser capture failure');if(f.hold)await new Promise(resolve=>f.release=resolve);return f.image;};
+  const save=chrome.storage.local.set.bind(chrome.storage.local);
+  chrome.storage.local.set=async patch=>{if(f.storageFull&&Object.hasOwn(patch,'pickmark-thumbnails-v1'))throw Error('QUOTA_BYTES quota exceeded');return save(patch);};
   const folder=await chrome.bookmarks.create({title:'Synthetic preview bookmarks'}),bookmark=await chrome.bookmarks.create({parentId:folder.id,title:'Synthetic preview bookmark',url:f.url});
   await chrome.storage.local.set({config,lastCleanupAt:Date.now(),'pickmark-auto-preview-v1':true,records:[{id:'preview-row',day,url:f.url,domain:'preview.example',title:'Synthetic page',group:'Human',snapshotGroup:'Human',manualGroup:true}],'pickmark-bookmarks-v1':{metadata:{[bookmark.id]:{url:f.url,group:'Human bookmark',manualGroup:true}},groups:['Human bookmark'],rules:[],revision:1}});
   previewReviewWorker.cancel();
@@ -88,10 +90,32 @@ try{
  assert.equal(await p.locator('[data-preview-authorization]').count(),0,'Authorization detail is not repeated once permission is granted');
  assert.match(await p.locator('#mono-preview').textContent(),/截图超时/);
  await worker.evaluate(async()=>{previewFixture.hold=false;previewFixture.release();await previewTask;});
+ // Manual captures are allowed with the manual grant even when automatic capture is unavailable.
+ for(const mode of [{recording:false,authorized:true,language:'zh'},{recording:true,authorized:false,language:'en'}]){
+  await worker.evaluate(async({recording,authorized})=>{
+   previewFixture.authorized=authorized;previewFixture.failure=false;previewFixture.storageFull=false;
+   await previewReviewWorker.captureFor({type:'thumbnail:capture',url:previewFixture.url},{excluded:[]});
+   const {config}=await chrome.storage.local.get('config');await chrome.storage.local.set({config:{...config,recording},'pickmark-thumbnails-v1':{}});
+  },mode);
+  await p.locator('#language-'+mode.language).evaluate(e=>e.click());await p.evaluate(()=>previewReviewUI.preview(previewReviewUI.rows[0],true));
+  assert.ok(await p.locator('#mono-capture').isEnabled());
+  const count=await worker.evaluate(()=>previewFixture.captures);await worker.evaluate(()=>previewReviewWorker.capture());
+  assert.equal(await worker.evaluate(()=>previewFixture.captures),count,'Automatic capture remains blocked');
+  await worker.evaluate(()=>{previewFixture.hold=true;globalThis.previewTask=previewReviewWorker.captureFor({type:'thumbnail:capture',url:previewFixture.url},{excluded:[]}).catch(()=>{});});
+  await p.locator('#mono-preview [data-preview-state=generating]').waitFor();
+  await worker.evaluate(async()=>{previewFixture.hold=false;previewFixture.release();await previewTask;});
+  await p.locator('#mono-preview [data-preview-state=saved]').waitFor();
+  await worker.evaluate(async()=>{previewFixture.storageFull=true;await previewReviewWorker.captureFor({type:'thumbnail:capture',url:previewFixture.url},{excluded:[]}).catch(()=>{});});
+  await p.locator('#mono-preview [data-preview-state=error]').waitFor();
+  assert.match(await p.locator('#mono-preview .preview-badge').textContent(),mode.language==='zh'?/空间不足/:/Storage is full/);
+  assert.equal(await p.locator('#mono-preview img').count(),1,'Failed manual refresh keeps the previous image');
+  await worker.evaluate(async()=>{previewFixture.storageFull=false;await previewReviewWorker.captureFor({type:'thumbnail:capture',url:previewFixture.url},{excluded:[]});});
+  await p.locator('#mono-preview [data-preview-state=saved]').waitFor();
+ }
  const after=await worker.evaluate(()=>chrome.storage.local.get(['records','pickmark-bookmarks-v1']));
  assert.deepEqual(after['pickmark-bookmarks-v1'],saved['pickmark-bookmarks-v1']);
  const assignments=data=>data.records.map(({lastSeen,...record})=>record);
  assert.deepEqual(assignments(after),assignments(saved),'Preview updates preserve records and manual assignments; normal browsing may advance lastSeen');
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
- console.log(`PASS ${cases} extension UI cases: tabs/bookmarks, zh/en, light/dark, 320/1280px; concise live states and failure reasons, contextual authorization, retry, gallery invalidation, no external pages or personal data`);
+ console.log(`PASS ${cases} extension UI cases plus paused/manual-grant progress, quota failure and retry: tabs/bookmarks, zh/en, light/dark, 320/1280px; concise states, contextual authorization and unchanged automatic-capture limits; no external pages or personal data`);
 }finally{if(context)await context.close();fs.rmSync(temp,{recursive:true,force:true});}

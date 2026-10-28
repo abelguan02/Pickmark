@@ -107,3 +107,24 @@ test('the image deadline never releases a pending storage write into a later cle
  await new Promise(resolve=>setTimeout(resolve,35));assert.equal(settled,false,'The serialized operation still owns its storage write');
  release();await task;assert.equal((await f.worker.status(f.tab.url)).state,'saved');f.worker.cancel();
 });
+for(const {name,recording,authorized} of [{name:'recording is paused',recording:false,authorized:true},{name:'only the manual activeTab grant is available',recording:true,authorized:false}]){
+ test(`manual capture progress and storage failure remain visible when ${name}`,async()=>{
+  const f=fixture();f.data[PREVIEW_AUTO_KEY]=true;f.data.config.recording=recording;f.state.allowed=authorized;f.state.fail=true;
+  const before=structuredClone(f.data);let release;f.state.hold=new Promise(resolve=>release=resolve);
+  const task=f.worker.captureFor({type:'thumbnail:capture',url:f.tab.url},f.data.config);
+  while(!f.state.captures)await new Promise(resolve=>setImmediate(resolve));
+  try{assert.equal((await f.worker.status(f.tab.url)).state,'generating');}
+  finally{release();await assert.rejects(task,/QUOTA/);f.worker.cancel();}
+  const failed=await f.worker.status(f.tab.url);assert.equal(failed.state,'error');assert.equal(failed.reason,'storage');
+  assert.deepEqual(f.data,before);
+ });
+}
+test('automatic progress still stops when recording is paused',async()=>{
+ const f=fixture();f.data[PREVIEW_AUTO_KEY]=true;f.state.allowed=true;
+ let release;f.state.hold=new Promise(resolve=>release=resolve);
+ const task=f.worker.capture();while(!f.state.captures)await new Promise(resolve=>setImmediate(resolve));
+ f.data.config.recording=false;
+ f.api.storage.onChanged.fire({config:{oldValue:{recording:true,excluded:[]},newValue:{recording:false,excluded:[]}}},'local');
+ assert.equal((await f.worker.status(f.tab.url)).reason,'paused');
+ release();await assert.rejects(task,/变化/);assert.equal(f.data[THUMBNAIL_KEY],undefined);f.worker.cancel();
+});

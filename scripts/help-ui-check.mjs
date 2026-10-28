@@ -13,7 +13,8 @@ try{
  await p.locator('#settings').click();await p.locator('#excluded').fill('example.invalid');await p.locator('#open-about-help').click();
  await p.locator('#pickmark-about [data-about-link=support]').click();
  assert.match(await p.locator('#pickmark-about').innerText(),/二维码待配置/);
- assert.equal(await p.locator('#pickmark-about a,#pickmark-about img').count(),0);
+ assert.equal(await p.locator('#pickmark-about a').count(),2);
+ assert.equal(await p.locator('#about-support-panel a,#about-support-panel img').count(),0);
  for(const width of [1100,390,320])for(const theme of ['light','dark']){
   await p.setViewportSize({width,height:844});await p.evaluate(t=>window.atlasColorMode.set(t),theme);
   const box=await p.locator('#pickmark-about').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width);
@@ -32,5 +33,5 @@ try{
  const fresh=await context.newPage();
  await fresh.addInitScript(()=>{localStorage.removeItem('pickmark-guide-v1');Storage.prototype.setItem=function(){throw new DOMException('Full','QuotaExceededError');};});
  await fresh.goto(base+'/dashboard.html');await fresh.locator('#pickmark-guide [data-skip]').click();assert.equal(await fresh.locator('#pickmark-guide').evaluate(e=>e.open),false,'Storage failure cannot trap the user in onboarding');
- console.log('PASS first use, skip/reload, replay/complete/Escape, bilingual help, unconfigured links/QR, light/dark narrow layouts, no external requests');
+ console.log('PASS first use, skip/reload, replay/complete/Escape, bilingual help, configured project links and unconfigured QR, light/dark narrow layouts, no external requests');
 }finally{await browser.close();}

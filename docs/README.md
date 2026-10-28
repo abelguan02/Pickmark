@@ -4,8 +4,9 @@
 
 - [English README](../README.en.md)：英文介绍、安装、使用、隐私要点和常见问题。
 - [项目首页与安装](../README.md)：介绍、安装、第一次使用和常见问题。
-- [0.1.8 安装与更新](INSTALL-UPDATE-0.1.8.md)：保留原目录和插件 ID 的覆盖更新步骤，中英文说明。
+- [0.1.9 安装与更新](INSTALL-UPDATE-0.1.9.md)：保留原目录和插件 ID 的覆盖更新步骤，中英文说明。
 - [0.1.7 回退版本](https://github.com/abelguan02/Pickmark/releases/tag/v0.1.7)：原安装包、校验文件和说明。
+- [0.1.8 回退版本](https://github.com/abelguan02/Pickmark/releases/tag/v0.1.8)：原安装包、校验文件和说明。
 - [产品行为](PRODUCT.md)：页面范围、规则、AI、回顾、恢复和界面设置。
 - [AI 配置](AI-PROVIDERS.md)：供应商预填值、费用与常见失败。
 - [隐私与数据处理](../PRIVACY.md)：本地记录、第三方请求、权限和删除控制。

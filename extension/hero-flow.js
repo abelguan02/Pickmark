@@ -1,6 +1,6 @@
 // Decorative title artwork only: no storage, browser data or network access.
 import {createLiquidRenderer} from './liquid-art.js';
-const shapes={workspace:'folder',folders:'folder',review:'clock',history:'history',smart:'spark'};
+const shapes={workspace:'folder',folders:'folder',history:'history',smart:'spark'};
 
 export function mountHeroFlow(host,view){
  if(!host||!shapes[view])return ()=>{};

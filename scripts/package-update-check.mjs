@@ -12,12 +12,13 @@ const executable=process.env.CHROMIUM_EXECUTABLE;
 assert.ok(executable,'Set CHROMIUM_EXECUTABLE');
 const version=JSON.parse(fs.readFileSync(root+'/extension/manifest.json')).version;
 const archive=root+`/dist/Pickmark-${version}.zip`;
-const baselineArchive=process.env.UPDATE_BASELINE_ARCHIVE||root+'/dist/Pickmark-0.1.8.zip';
+const baselineArchive=process.env.UPDATE_BASELINE_ARCHIVE||root+'/dist/Pickmark-0.1.20.zip';
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'pickmark-package-update-'));
 const folder=temp+'/extension';fs.mkdirSync(folder);
 execFileSync('unzip',['-q',baselineArchive,'-d',folder]);
 const manifest=JSON.parse(fs.readFileSync(folder+'/manifest.json'));
 const fromVersion=manifest.version;
+const baselineHasImageDB=fs.existsSync(folder+'/thumbnail-cache.js');
 assert.notEqual(fromVersion,version);assert.ok(!manifest.permissions.includes('bookmarks'));
 const server=http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'text/html'});res.end('<title>Synthetic manual page</title>Package update fixture');});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -28,8 +29,10 @@ async function until(fn){const end=Date.now()+20000;while(Date.now()<end){const 
 const cdp=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++serial;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params,...(sessionId?{sessionId}:{})}));});
 const identity=createHash('sha256').update(fs.realpathSync(folder)).digest('hex').slice(0,32).replace(/[0-9a-f]/g,c=>String.fromCharCode(97+parseInt(c,16)));
 const origin='chrome-extension://'+identity;
+let currentPanelTarget;
 async function panel(){
  const {targetId}=await cdp('Target.createTarget',{url:'about:blank'});
+ currentPanelTarget=targetId;
  const {sessionId}=await cdp('Target.attachToTarget',{targetId,flatten:true});
  await cdp('Network.enable',{},sessionId);
  await cdp('Network.setBlockedURLs',{urls:[origin+'/dashboard.js*']},sessionId);
@@ -61,13 +64,19 @@ try{
    {id:'pending',day:dayKey(now-86400000),url:'https://pending.test',domain:'pending.test',title:'Pending',group:'待整理',snapshotGroup:'待整理'}
   ],visits:[{visit:'synthetic',day:dayKey(),url:${JSON.stringify(fixtureURL)},domain:'127.0.0.1',start:now-1000,end:now}],
   apiKeys:{deepseek:'synthetic-persistent',openai:''},'pickmark-bookmarks-v1':{metadata:{synthetic:{url:'https://bookmark.test',group:'Human bookmark',manualGroup:true}},groups:['Human bookmark'],rules:[{keyword:'book',group:'Human bookmark'}],revision:2}});
-  await chrome.storage.session.set({apiKeys:{openai:'synthetic-stale-session'}});
+  if(${baselineHasImageDB}){const {thumbnailCache}=await import('./thumbnail-cache.js');await thumbnailCache(chrome).put(${JSON.stringify(fixtureURL)},canvas.toDataURL('image/jpeg'));}
+  await chrome.storage.local.set({activityCursor:{at:now},trackingSince:now-1000});
+  await chrome.storage.session.set({apiKeys:{openai:'synthetic-stale-session'},activityRun:'old-run',mediaFrames:{synthetic:{at:now}}});
   localStorage.setItem('atlas-language-v1','zh');
   await send({type:'getHistory'});
  })()`);
  assert.equal(await run('chrome.runtime.getManifest().version'),fromVersion);
- const before=await run("chrome.storage.local.get(['config','records','visits','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])");
+ const before=await run("chrome.storage.local.get(['config','records','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])");
  const beforePermissions=await run('chrome.permissions.getAll()');
+ const targetManifest=JSON.parse(fs.readFileSync(root+'/extension/manifest.json'));
+ assert.deepEqual([...targetManifest.permissions].sort(),['tabs','activeTab','storage','sidePanel','alarms','favicon','scripting','debugger'].sort());
+ const expectedPermissions={permissions:[...targetManifest.permissions].sort(),origins:[...targetManifest.host_permissions].sort()};
+ const expectedData=structuredClone(before);delete expectedData.config.idleSeconds;
  assert.equal(before.config.recording,false);assert.equal(before.records.find(r=>r.id==='manual')?.manualGroup,true);
  assert.equal(before.apiKeys.openai,'');
  execFileSync('unzip',['-oq',archive,'-d',folder]);
@@ -79,33 +88,50 @@ try{
  await until(async()=>{const result=await cdp('Runtime.evaluate',{expression:'!!chrome.developerPrivate?.reload',returnByValue:true},managerSession);return result.result.value;});
  const developerMode=await cdp('Runtime.evaluate',{expression:'new Promise(resolve=>chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode:true},resolve))',awaitPromise:true,returnByValue:true},managerSession);
  if(developerMode.exceptionDetails)throw Error(developerMode.exceptionDetails.exception?.description||developerMode.exceptionDetails.text);
+ async function reloadVersion(expectedVersion){
+ // Close the old dashboard before reloading the unpacked extension.
+ await cdp('Target.closeTarget',{targetId:currentPanelTarget});
  const reload=await cdp('Runtime.evaluate',{expression:`new Promise((resolve,reject)=>chrome.developerPrivate.reload(${JSON.stringify(identity)},{},()=>chrome.runtime.lastError?reject(Error(chrome.runtime.lastError.message)):resolve(true)))`,awaitPromise:true,returnByValue:true},managerSession);
  if(reload.exceptionDetails)throw Error(reload.exceptionDetails.exception?.description||reload.exceptionDetails.text);
  // The manager callback returns while the extension is still "reloading".
  // Opening its page during that interval produces a persistent error page.
  try{await until(async()=>{
-  const info=await cdp('Runtime.evaluate',{expression:`new Promise(resolve=>chrome.developerPrivate.getExtensionsInfo({includeDisabled:true,includeTerminated:true},items=>resolve(items.some(item=>item.id===${JSON.stringify(identity)}&&item.state==='ENABLED'&&item.version===${JSON.stringify(version)}))))`,awaitPromise:true,returnByValue:true},managerSession);
+  const info=await cdp('Runtime.evaluate',{expression:`new Promise(resolve=>chrome.developerPrivate.getExtensionsInfo({includeDisabled:true,includeTerminated:true},items=>resolve(items.some(item=>item.id===${JSON.stringify(identity)}&&item.state==='ENABLED'&&item.version===${JSON.stringify(expectedVersion)}))))`,awaitPromise:true,returnByValue:true},managerSession);
   return info.result.value;
  });}catch(error){
   const status=await cdp('Runtime.evaluate',{expression:'new Promise(resolve=>chrome.developerPrivate.getExtensionsInfo({includeDisabled:true,includeTerminated:true},items=>resolve(items.map(({id,state,version,manifestErrors,disableReasons})=>({id,state,version,manifestErrors,disableReasons})))))',awaitPromise:true,returnByValue:true},managerSession);
   console.log('Temporary reload status',status.result.value);throw error;
  }
  let lastProbeError;
- try{await until(async()=>{try{run=await panel();return await run(`chrome.runtime.getManifest().version===${JSON.stringify(version)}`);}catch(error){lastProbeError=error.message;return false;}});}
+ try{await until(async()=>{try{run=await panel();return await run(`chrome.runtime.getManifest().version===${JSON.stringify(expectedVersion)}`);}catch(error){lastProbeError=error.message;return false;}});}
  catch(error){console.log('Update panel failure:',lastProbeError);throw error;}
  assert.equal(await run('chrome.runtime.id'),identity);
+ }
+ await reloadVersion(version);
  await run("send({type:'getHistory'})");
- const after=await run("chrome.storage.local.get(['config','records','visits','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])");
- assert.deepEqual(after,before);
- assert.deepEqual(await run('chrome.permissions.getAll()'),beforePermissions);
+ const after=await run("chrome.storage.local.get(['config','records','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])");
+ assert.deepEqual(after,expectedData);
+ assert.deepEqual(await run("chrome.storage.local.get(['visits','activityCursor','trackingSince'])"),{});
+ assert.deepEqual(await run("chrome.storage.session.get(['activityRun','mediaFrames'])"),{});
+ assert.equal(await run("chrome.alarms.get('activity-checkpoint')"),undefined);
+ assert.equal(after.config.idleSeconds,undefined);
+ const updatedPermissions=await run('chrome.permissions.getAll()');
+ updatedPermissions.permissions.sort();assert.deepEqual(updatedPermissions,expectedPermissions);
  const preview=await run(`send({type:'preview:status',url:${JSON.stringify(fixtureURL)}})`);
  assert.equal(preview.state,'saved');assert.equal(preview.requested,true);
+ const migratedImage=await run(`send({type:'thumbnail:get',url:${JSON.stringify(fixtureURL)}})`);
+ assert.equal(migratedImage,before['pickmark-thumbnails-v1'][fixtureURL].image);
+ const cacheUsage=await run("send({type:'thumbnail:usage'})");assert.equal(cacheUsage.count,1);assert.equal(cacheUsage.maxBytes,50_000_000);assert.equal(cacheUsage.maxItems,500);
+ await run(`(async()=>{const {thumbnailCache}=await import('./thumbnail-cache.js');await thumbnailCache(chrome).put('https://new-preview.test/',${JSON.stringify(migratedImage)});})()`);
+ assert.deepEqual(await run("chrome.storage.local.get(['config','records','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])"),expectedData);
  assert.equal(await run("localStorage.getItem('atlas-language-v1')"),'zh');
  const history=await run("send({type:'getHistory'})");
  assert.equal(history.records.find(r=>r.id==='pending').group,'待整理');
  assert.equal(history.records.find(r=>r.id==='manual').manualGroup,true);
  assert.equal(history.hasKey,true);
- console.log('PASS actual packaged extension reload '+fromVersion+' -> '+version+': ID unchanged, local data and permissions identical; manual groups, bookmark metadata, history/rules, supplier Keys, language, preview preference and cached image retained; existing preview shows Saved.');
+ console.log('PASS actual packaged extension reload '+fromVersion+' -> '+version+': ID and local data retained; retired statistics removed, permissions verified for background preview capture; manual groups, bookmark metadata, history/rules, supplier Keys, language, preview preference and cached image retained; existing preview shows Saved.');
+ const groupingView={density:'comfortable',layout:'list',preview:true,grouping:{tabs:'site',bookmarks:'topic'}};
+ await run(`localStorage.setItem('pickmark-view-v1',${JSON.stringify(JSON.stringify(groupingView))})`);
  const repaired=await run(`(async()=>{
   const {dayKey,settingsSignature}=await import('./core.js');
   const {organizeHistory}=await import('./history-workflow.js');
@@ -121,7 +147,29 @@ try{
  assert.equal(repaired.manual.manualGroup,true);assert.equal(repaired.manual.group,'Human');
  for(const field of ['metadata','groups','rules'])assert.deepEqual(repaired.bookmarks[field],before['pickmark-bookmarks-v1'][field]);
  console.log('PASS historical local-rule classification after update; existing/manual categories and bookmark metadata protected.');
- console.log('PASS release keeps bookmark/screenshot access optional; no personal data included.');
+ // Roll back in the same folder and profile, retaining data written by the new
+ // version. Pause normal tracking so the equality check measures the reload.
+ await run(`(async()=>{const {settingsSignature}=await import('./core.js');const state=await send({type:'getHistory'});await send({type:'settings',expectedSettings:settingsSignature(state.config),value:{...state.config,recording:false}});})()`);
+ const rollbackBefore=await run("chrome.storage.local.get(['config','records','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])");
+ execFileSync('unzip',['-oq',baselineArchive,'-d',folder]);
+ await reloadVersion(fromVersion);
+ await run("send({type:'getHistory'})");
+ assert.deepEqual(await run("chrome.storage.local.get(['config','records','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])"),rollbackBefore);
+ assert.deepEqual(await run('chrome.permissions.getAll()'),beforePermissions);
+ assert.equal(await run("localStorage.getItem('atlas-language-v1')"),'zh');
+ assert.deepEqual(await run("JSON.parse(localStorage.getItem('pickmark-view-v1'))"),groupingView);
+ console.log('PASS packaged rollback '+version+' -> '+fromVersion+': same extension ID, saved data, permissions and language retained.');
+ assert.equal(await run(`send({type:'thumbnail:get',url:${JSON.stringify(fixtureURL)}})`),migratedImage);
+ assert.equal(await run("send({type:'thumbnail:get',url:'https://new-preview.test/'})"),baselineHasImageDB?migratedImage:null);
+ execFileSync('unzip',['-oq',archive,'-d',folder]);await reloadVersion(version);
+ assert.equal(await run("send({type:'thumbnail:get',url:'https://new-preview.test/'})"),migratedImage);
+ assert.deepEqual(await run("chrome.storage.local.get(['config','records','apiKeys','pickmark-bookmarks-v1','pickmark-auto-preview-v1','pickmark-thumbnails-v1'])"),rollbackBefore);
+ console.log('PASS preview migration and rollback snapshot; new independent-cache images survive rollback and re-upgrade.');
+ assert.deepEqual(await run("JSON.parse(localStorage.getItem('pickmark-view-v1'))"),groupingView);
+ console.log('PASS independent website/topic view preferences survive rollback and re-upgrade without rewriting topic data.');
+ assert.deepEqual(await run("chrome.storage.local.get(['visits','activityCursor','trackingSince'])"),{});
+ assert.equal((await run("chrome.storage.local.get('config')")).config.idleSeconds,undefined);
+ console.log('PASS retired statistics and settings are removed on upgrade and re-upgrade; retained data, bookmarks and optional screenshot access remain.');
 }finally{
  await cdp('Browser.close').catch(()=>{});ws?.close();
  if(browser.exitCode===null&&browser.signalCode===null){await delay(500);if(browser.exitCode===null&&browser.signalCode===null)process.kill(-browser.pid,'SIGTERM');}

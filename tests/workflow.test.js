@@ -13,6 +13,11 @@ function fixture(count=451){
  return {state,send};
 }
 const plan=records=>({assignments:records.map(r=>({id:r.id,group:'研究'})),rules:[]});
+test('switching away from topic organization while AI is pending does not apply its late assignments',async()=>{
+ const f=fixture(2);let topic=true;
+ const result=await organizeOpenTabs({send:f.send,shouldContinue:()=>topic,request:async records=>{topic=false;return plan(records);}});
+ assert.equal(result.reason,'stopped');assert.ok(f.state.records.every(r=>r.group==='待整理'));
+});
 test('open-tab classification never sends stale pages when privacy changes while retrieving the key',async()=>{
  for(const change of [s=>{s.config.excluded=['example.com'];s.records=[];},s=>{s.config.recording=false;},s=>{s.records=[];s.config.recording=false;},s=>{s.records=[];},s=>{s.hasKey=false;},s=>{s.records[0].manualGroup=true;}]){
   const f=fixture(2);let requests=0;

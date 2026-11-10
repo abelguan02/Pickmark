@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {storageBytes} from './storage-fixture.js';
+import {installThumbnailCache} from './thumbnail-fixture.js';
 import {requestRecordsSignature} from '../extension/classification-request.js';
 import {settingsSignature,defaults,dayKey,classificationContext} from '../extension/core.js';
 const event=()=>({listeners:[],addListener(fn){this.listeners.push(fn);}});
 const local={},session={},updates=[],created=[];
 let tabs=[{id:1,windowId:9,url:'https://example.com/a',title:'One'},{id:2,windowId:9,url:'https://example.com/a',title:'Duplicate'},{id:3,windowId:9,url:'https://secret.com/a',title:'Secret',incognito:true}];
-function storage(data){return{async get(keys){return Object.fromEntries((keys===null?Object.keys(data):Array.isArray(keys)?keys:[keys]).filter(k=>k in data).map(k=>[k,structuredClone(data[k])]))},async set(value){
+function storage(data){return{async getBytesInUse(keys){return storageBytes(data,keys);},async get(keys){return Object.fromEntries((keys===null?Object.keys(data):Array.isArray(keys)?keys:[keys]).filter(k=>k in data).map(k=>[k,structuredClone(data[k])]))},async set(value){
  const merged={...data,...value};
  const bytes=Object.entries(merged).reduce((sum,[key,item])=>sum+Buffer.byteLength(key)+Buffer.byteLength(JSON.stringify(item)),0);
  if(data===local&&bytes>10*1024*1024)throw new Error('QUOTA_BYTES quota exceeded');
@@ -15,9 +17,24 @@ const panelBehaviors=[];
 globalThis.chrome={sidePanel:{async setPanelBehavior(value){panelBehaviors.push(value)}},storage:{local:storage(local),session:storage(session)},runtime:{id:'test',getURL:path=>`chrome-extension://test/${path}`,onInstalled:event(),onStartup:event(),onMessage:event()},tabs:{async query(){return structuredClone(tabs)},async update(id,patch){updates.push({id,patch})},async create(value){if(value.url==='https://failure.test/')throw new Error('test failure');created.push(value);const tab={id:100+created.length,windowId:9,...value};tabs.push(tab);return tab;},onCreated:event(),onRemoved:event(),onUpdated:event(),onActivated:event()},windows:{async update(id,patch){updates.push({window:id,patch})}}};
 const maintenanceAlarms=[];
 chrome.action={onClicked:event()};
-chrome.alarms={async get(){return undefined;},async create(name,options){maintenanceAlarms.push({name,...options});},onAlarm:event()};
+chrome.alarms={async clear(){return true;},async get(){return undefined;},async create(name,options){maintenanceAlarms.push({name,...options});},onAlarm:event()};
+const {db:previewDB,cache:previewCache}=installThumbnailCache(chrome,{migrated:true});
 await import('../extension/background.js');
 const send=input=>{const message=input.type==='settings'&&!Object.hasOwn(input,'expectedSettings')?{...input,expectedSettings:settingsSignature(local.config)}:input;return new Promise((resolve,reject)=>chrome.runtime.onMessage.listeners[0](message,{id:'test',url:'chrome-extension://test/dashboard.html'},response=>response.error?reject(new Error(response.error)):resolve(response.value)));};
+test('temporary preview pages never enter the workspace or saved history',async()=>{
+ const before=structuredClone(local),beforeSession=structuredClone(session),beforeTabs=tabs;
+ try{
+  local.config=defaults();local.records=[];local.visits=[];local.lastCleanupAt=Date.now();
+  tabs=[{id:1,windowId:9,url:'https://real.test/',title:'Real'},{id:2,windowId:10,url:'https://preview-only.test/',title:'Temporary'}];
+  session['pickmark-preview-window-v1']={windowId:10,tabId:2};
+  const state=await send({type:'get'});
+  assert.deepEqual(state.tabs.map(t=>t.id),[1]);assert.deepEqual(local.records.map(r=>r.url),['https://real.test/']);
+  assert.equal(local.visits.some(v=>v.url==='https://preview-only.test/'),false);
+ }finally{
+  for(const k of Object.keys(local))delete local[k];Object.assign(local,before);
+  for(const k of Object.keys(session))delete session[k];Object.assign(session,beforeSession);tabs=beforeTabs;
+ }
+});
 test('preview status stays readable while a real manual capture holds the write queue',async()=>{
  const saved=structuredClone(local),beforeTabs=tabs,permissions=chrome.permissions,getWindow=chrome.windows.getLastFocused,getTab=chrome.tabs.get,captureTab=chrome.tabs.captureVisibleTab;
  let release,started=false;
@@ -55,12 +72,13 @@ test('cleanup is previewable, preserves current manual tabs and bookmarks, rejec
   local.config=defaults();local.lastCleanupAt=Date.now();local.apiKeys={deepseek:'fake'};
   tabs=[{id:1,url:'https://open.test'}];
   local.records=[{id:'open',day:old,url:'https://open.test',title:'Open',group:'Human',manualGroup:true},{id:'closed',day:yesterday,url:'https://closed.test',title:'Closed',group:'待整理',snapshotGroup:'待整理'}];
-  local.visits=[{day:yesterday,url:'https://closed.test'}];local['pickmark-bookmarks-v1']={metadata:{synthetic:'unchanged'}};
+  local['pickmark-bookmarks-v1']={metadata:{synthetic:'unchanged'}};
   const context=classificationContext(local.config,''),copy=structuredClone(local.records);
   const preview=await send({type:'cleanupPreview',mode:'all'});assert.equal(preview.records,2);assert.deepEqual(local.records,copy);
-  await send({type:'cleanup',mode:'all'});assert.equal(local.records.length,1);assert.equal(local.records[0].group,'Human');assert.equal(local.records[0].manualGroup,true);assert.equal(local.records[0].day,dayKey());assert.deepEqual(local.visits,[]);assert.equal(local.config.recording,true);assert.deepEqual(local['pickmark-bookmarks-v1'],{metadata:{synthetic:'unchanged'}});
+  await send({type:'cleanup',mode:'all'});assert.equal(local.records.length,1);assert.equal(local.records[0].group,'Human');assert.equal(local.records[0].manualGroup,true);assert.equal(local.records[0].day,dayKey());assert.equal(local.config.recording,true);assert.deepEqual(local['pickmark-bookmarks-v1'],{metadata:{synthetic:'unchanged'}});
   const late=await send({type:'historyAssign',day:yesterday,expectedContext:context,assignments:[{id:'closed',baseTitle:'Closed',baseGroup:'待整理',baseSnapshot:'待整理',baseManual:false,group:'Late'}]});assert.equal(late.accepted,false);assert.equal(local.records.length,1);
-  local['pickmark-thumbnails-v1']={'https://test':{image:'fake'}};const before=structuredClone(local.records);await send({type:'cleanup',mode:'cache'});assert.deepEqual(local.records,before);assert.deepEqual(local['pickmark-thumbnails-v1'],{});
+  local['pickmark-thumbnails-v1']={'https://test':{image:'fake'}};await previewCache.put('https://test/','data:image/jpeg;base64,YQ==');
+  const before=structuredClone(local.records);await send({type:'cleanup',mode:'cache'});assert.deepEqual(local.records,before);assert.equal(local['pickmark-thumbnails-v1'],undefined);assert.equal(previewDB.state.images.size,0);
  }finally{for(const k of Object.keys(local))delete local[k];Object.assign(local,saved);tabs=beforeTabs;}
 });
 test('startup maintenance carries old manual state and retention setting immediately removes expired history',async()=>{
@@ -72,6 +90,23 @@ test('startup maintenance carries old manual state and retention setting immedia
   await send({type:'settings',value:{...local.config,retentionDays:7}});assert.equal(local.config.retentionDays,7);assert.equal(local.records.length,1);assert.equal(local.records[0].group,'Manual');
   await assert.rejects(send({type:'settings',value:{...local.config,retentionDays:365}}));
  }finally{for(const k of Object.keys(local))delete local[k];Object.assign(local,saved);tabs=beforeTabs;}
+});
+test('failed history cleanup leaves the independently stored previews intact',async t=>{
+ const beforeLocal=structuredClone(local),beforeTabs=tabs,beforeDB=structuredClone(previewDB.state);
+ try{
+  local.config=defaults();local.lastCleanupAt=Date.now();tabs=[];
+  local.records=[{id:'old',day:dayKey(Date.now()-10*86400000),url:'https://history.test/',title:'Old'}];local.visits=[];
+  await previewCache.put('https://preview.test/','data:image/jpeg;base64,YQ==');
+  const stored=structuredClone(local),images=structuredClone(previewDB.state);
+  t.mock.method(chrome.storage.local,'set',async()=>{throw Error('QUOTA_BYTES quota exceeded');});
+  for(const mode of ['old','all']){
+   await assert.rejects(send({type:'cleanup',mode,days:7}),/QUOTA_BYTES/);
+   assert.deepEqual(local,stored);assert.deepEqual(previewDB.state,images);
+  }
+ }finally{
+  for(const key of Object.keys(local))delete local[key];Object.assign(local,beforeLocal);tabs=beforeTabs;
+  Object.assign(previewDB.state,beforeDB);
+ }
 });
 test('serialized AI dispatch rechecks privacy and releases the queue during the network request',async tctx=>{
  const saved=structuredClone(local),savedTabs=tabs;
@@ -144,7 +179,7 @@ test('worker can collect and classify long titles under an enforced storage quot
   tabs=Array.from({length:5000},(_,i)=>({id:i,url:`https://large.test/${i}`,title:'x'.repeat(2200)}));
   let state=await send({type:'get'});
   assert.ok(state.records.length>0&&state.records.length<5000);
-  await send({type:'assign',assignments:state.records.map(r=>({id:r.id,group:'Research'}))});
+  await send({type:'assign',assignments:state.records.map(r=>({id:r.id,group:'Research',baseTitle:r.title,baseGroup:r.group,baseManual:!!r.manualGroup}))});
   state=await send({type:'get'});
   assert.ok(state.records.some(r=>r.aiTitle===r.title));
   assert.ok(Buffer.byteLength(JSON.stringify(local.records))<=4*1024*1024);
@@ -365,14 +400,57 @@ test('workspace rename and deletion migrate snapshots before restoring historica
  assert.ok(today.every(r=>r.manualGroup));
 });
 
-test('title-only tab updates collect new metadata without a dashboard read',async()=>{
+test('continuous title updates persist within the batching window without a dashboard read',async t=>{
  const {defaults}=await import('../extension/core.js');local.config=defaults();local.records=[];
  tabs=[{id:91,windowId:1,url:'https://title.test/',title:'Before'}];
- await send({type:'get'});tabs[0].title='After';
- for(const listener of chrome.tabs.onUpdated.listeners)listener(91,{title:'After'},tabs[0]);
- // A non-collecting request waits for the worker queue without masking a missed event.
+ await send({type:'get'});t.mock.timers.enable({apis:['setTimeout']});
+ for(let i=0;i<5;i++){
+  tabs[0].title='After '+i;
+  for(const listener of chrome.tabs.onUpdated.listeners)listener(91,{title:tabs[0].title},tabs[0]);
+  t.mock.timers.tick(200);
+ }
+ // Let queued storage promises finish without a message that flushes collection.
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(local.records[0].title,'After 4');
+});
+
+test('bursts of title events coalesce and unchanged syncs do not rewrite records',async t=>{
+ local.config=defaults();local.records=[];local.lastCleanupAt=Date.now();
+ tabs=[{id:92,windowId:1,url:'https://burst.test/',title:'Before'}];
+ await send({type:'get'});
+ const writes=[],set=chrome.storage.local.set.bind(chrome.storage.local);
+ t.mock.method(chrome.storage.local,'set',async patch=>{writes.push(patch);return set(patch);});
+ for(let i=0;i<30;i++){
+  tabs[0].title='Title '+i;
+  for(const listener of chrome.tabs.onUpdated.listeners)listener(92,{title:tabs[0].title},tabs[0]);
+ }
  await send({type:'getKey',provider:'deepseek'});
- assert.equal(local.records[0].title,'After');
+ assert.equal(local.records[0].title,'Title 29');
+ assert.equal(writes.filter(patch=>Object.hasOwn(patch,'records')).length,1);
+ writes.length=0;
+ await send({type:'get'});await send({type:'get'});
+ assert.equal(writes.filter(patch=>Object.hasOwn(patch,'records')).length,0);
+});
+
+test('close targets the displayed tab and refuses missing, private or navigated targets',async t=>{
+ local.config=defaults();local.records=[];local.lastCleanupAt=Date.now();
+ tabs=[{id:101,url:'https://duplicate.test/',title:'First'},{id:102,url:'https://duplicate.test/',title:'Second'},{id:103,url:'https://duplicate.test/',incognito:true}];
+ const state=await send({type:'get'}),id=state.records[0].id,removed=[];
+ chrome.tabs.remove=async tabId=>{removed.push(tabId);tabs=tabs.filter(tab=>tab.id!==tabId);};
+ t.after(()=>delete chrome.tabs.remove);
+ await send({type:'closeTab',id,tabId:102});assert.deepEqual(removed,[102]);assert.equal(tabs[0].id,101);
+ for(const tabId of [undefined,102,103])await assert.rejects(send({type:'closeTab',id,tabId}));
+ tabs[0].url='https://navigated.test/';
+ await assert.rejects(send({type:'closeTab',id,tabId:101}));assert.deepEqual(removed,[102]);
+});
+
+test('worker refuses incomplete AI baselines without changing manual classifications',async()=>{
+ local.config=defaults();local.records=[];local.lastCleanupAt=Date.now();tabs=[{id:104,url:'https://manual.test/',title:'Manual'}];
+ const state=await send({type:'get'}),id=state.records[0].id;
+ await send({type:'patch',id,value:{group:'Human'}});
+ const before=structuredClone(local.records);
+ await send({type:'assign',assignments:[{id,group:'AI'}]});
+ assert.deepEqual(local.records,before);
 });
 
 test('worker errors use the requesting panel language without changing record storage',async()=>{
@@ -393,16 +471,4 @@ test('stale settings cannot undo pause, exclusion or clear; unrelated rules do n
  await assert.rejects(send({type:'settings',expectedSettings:beforeClear,value:{...local.config,recording:true}}),/其他窗口/);
  await assert.rejects(send({type:'settings',expectedSettings:undefined,value:defaults()}),/其他窗口/);
  assert.equal(local.config.recording,false);
-});
-test('review opens retained visits without daily records, reuses tabs and rejects missing or excluded visits',async()=>{
- local.config=defaults();local.records=[];tabs=[];
- const now=Date.now(),visit={visit:'review-visit',day:dayKey(now),url:'https://review.test/',domain:'review.test',start:now-1000,end:now};
- local.visits=[visit];
- const message={type:'jumpVisit',visit:visit.visit,day:visit.day,url:visit.url},before=created.length;
- await send(message);assert.equal(created.length,before+1);
- await send(message);assert.equal(created.length,before+1);assert.equal(updates.at(-1).patch.active,true);
- await assert.rejects(send({...message,url:'https://arbitrary.test/'}),/不存在/);
- local.config.excluded=['review.test'];await assert.rejects(send(message),/不存在/);
- local.config.excluded=[];local.visits=[{...visit,day:'2000-01-01'}];await assert.rejects(send({...message,day:'2000-01-01'}),/不存在/);
- local.visits=[];await assert.rejects(send(message),/不存在/);
 });

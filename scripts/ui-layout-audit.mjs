@@ -19,7 +19,7 @@ try{
   if(mode==='bookmarks')await p.locator('#mono-list [data-pm=connect]').click();
   for(const scheme of ['light','dark'])for(const width of [1440,1023,818,390,320]){
    await p.setViewportSize({width,height:844});await p.evaluate(s=>window.atlasColorMode.set(s),scheme);
-   for(const view of mode==='tabs'?['workspace','review','history','manage','rules','settings']:['folders','smart','manage','rules','settings']){
+   for(const view of mode==='tabs'?['workspace','history','manage','rules','settings']:['folders','smart','manage','rules','settings']){
     await nav(view);await p.waitForTimeout(30);
     const bad=await p.evaluate(()=>[...document.querySelectorAll('main button,main input,main select,main textarea,main label,main .help')].filter(e=>e.checkVisibility()&&!e.closest('[hidden]')).filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.right>innerWidth+1||r.left< -1);}).map(e=>e.id||e.className||e.tagName));
     if(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth)||bad.length)issues.push({mode,scheme,width,view,bad:bad.slice(0,6)});

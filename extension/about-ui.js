@@ -1,5 +1,5 @@
 // About Kit / Terminal, adapted to the extension's existing language and theme.
-// Project links use the owner's repository; support stays unconfigured.
+// Project links and the local support QR code are provided by the owner.
 let generation=0;
 export async function renderAbout(dialog,L,onGuide){
  const token=++generation;
@@ -8,7 +8,13 @@ export async function renderAbout(dialog,L,onGuide){
  <a href="https://github.com/abelguan02/Pickmark" target="_blank" rel="noopener noreferrer" data-about-link="repo"><span aria-hidden="true">[1]</span><strong>${L('开源仓库','Source code')}</strong><small>GitHub</small><span aria-hidden="true">↗</span></a>
  <a href="https://github.com/abelguan02/Pickmark/issues" target="_blank" rel="noopener noreferrer" data-about-link="feedback"><span aria-hidden="true">[2]</span><strong>${L('反馈与建议','Feedback')}</strong><small>Issues</small><span aria-hidden="true">↗</span></a>
  <button type="button" data-about-link="support" aria-expanded="false" aria-controls="about-support-panel"><span aria-hidden="true">[3]</span><strong>${L('自愿赞赏','Voluntary support')}</strong><small>${L('请作者喝杯咖啡','Buy me a coffee')}</small><span aria-hidden="true">→</span></button></div>
- <section id="about-support-panel" class="about-inset" hidden><p>${L('如果拾签帮到了你，欢迎自愿赞赏，支持持续维护。','If Pickmark helps you, voluntary support helps fund maintenance.')}</p><div class="about-qr-placeholder">${L('赞赏二维码待配置','Support QR code not configured')}</div><p>${L('所有功能均可正常使用，无需赞赏。','All features remain available without a contribution.')}</p></section>
+ <section id="about-support-panel" class="about-inset" hidden><p>${L('如果拾签帮到了你，欢迎自愿赞赏，支持持续维护。','If Pickmark helps you, voluntary support helps fund maintenance.')}</p>
+ <div class="about-support-tabs" role="tablist" aria-label="${L('赞赏方式','Support method')}">
+ <button type="button" role="tab" id="about-wechat-tab" aria-controls="about-wechat-code" aria-selected="true">${L('微信支付','WeChat Pay')}</button>
+ <button type="button" role="tab" id="about-alipay-tab" aria-controls="about-alipay-code" aria-selected="false" tabindex="-1">${L('支付宝','Alipay')}</button></div>
+ <div role="tabpanel" id="about-wechat-code" aria-labelledby="about-wechat-tab" tabindex="0"><img class="about-support-qr" src="support-qr.jpg" width="395" height="404" alt="${L('微信自愿赞赏二维码','WeChat QR code for voluntary support')}"></div>
+ <div role="tabpanel" id="about-alipay-code" aria-labelledby="about-alipay-tab" tabindex="0" hidden><img class="about-support-qr" src="support-alipay-qr.jpg" width="899" height="895" alt="${L('支付宝自愿赞赏二维码','Alipay QR code for voluntary support')}"></div>
+ <p>${L('所有功能均可正常使用，无需赞赏。','All features remain available without a contribution.')}</p></section>
  <h3 class="about-section">${L('HELP · 使用帮助','HELP · GETTING STARTED')}</h3><button type="button" class="about-guide-link" data-guide><span>${L('重新查看新手引导','View the introduction again')}</span><span aria-hidden="true">→</span></button><details class="about-tips"><summary>${L('分类、AI 与隐私','Categories, AI & privacy')}</summary><p>${L('标签页和书签独立整理。人工分类、本地规则和历史补分类均可使用；AI 为可选功能，书签 AI 处理前需要确认范围。','Tabs and bookmarks are organized independently. Manual categories, local rules and historical classification are available. AI is optional; bookmark AI requires scope confirmation.')}</p><p>${L('记录、预览授权和清理选项位于「设置与隐私」。','Recording, preview permissions and cleanup controls are in Settings & privacy.')}</p></details></div><footer class="about-footer"><span>MIT · © 2026 PICKMARK</span><span>${L('↑↓ 选择 · Enter 打开','↑↓ Select · Enter Open')}</span></footer></div>`;
  const brand=document.querySelector('#brand .brand-logo');
  dialog.querySelector('[data-close-help]').onclick=()=>dialog.close();
@@ -26,6 +32,23 @@ export async function renderAbout(dialog,L,onGuide){
  copy.onclick=async()=>{try{await navigator.clipboard.writeText(version);if(current())dialog.querySelector('[data-copy-status]').textContent=L('已复制版本号','Version copied');}catch{if(current())dialog.querySelector('[data-copy-status]').textContent=L('无法复制，请手动选择版本号。','Could not copy. Select the version manually.');}};
  const links=[...dialog.querySelectorAll('[data-about-link]')];
  const support=dialog.querySelector('[data-about-link=support]');
+ const tabs=[...dialog.querySelectorAll('.about-support-tabs [role="tab"]')];
+ function selectTab(selected){
+  for(const tab of tabs){
+   const active=tab===selected;
+   tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;
+   dialog.querySelector('#'+tab.getAttribute('aria-controls')).hidden=!active;
+  }
+ }
+ tabs.forEach((tab,index)=>{
+  tab.onclick=()=>selectTab(tab);
+  tab.onkeydown=event=>{
+   if(event.altKey||event.ctrlKey||event.metaKey)return;
+   const next={ArrowLeft:1-index,ArrowRight:1-index,Home:0,End:1}[event.key];
+   if(next===undefined)return;
+   event.preventDefault();selectTab(tabs[next]);tabs[next].focus();
+  };
+ });
  support.onclick=()=>{const panel=dialog.querySelector('#about-support-panel');panel.hidden=!panel.hidden;support.setAttribute('aria-expanded',String(!panel.hidden));};
  dialog.onkeydown=event=>{
   event.stopPropagation();if(event.ctrlKey||event.metaKey||event.altKey)return;

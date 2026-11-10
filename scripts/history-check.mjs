@@ -8,7 +8,7 @@ try{
   await page.addInitScript(({hasKey})=>{
    const event=()=>({listeners:[],addListener(fn){this.listeners.push(fn);}});
    const local={},session={},tabs=[];let boot;
-   const storage=data=>({async get(keys){return structuredClone(Object.fromEntries((keys===null?Object.keys(data):Array.isArray(keys)?keys:[keys]).filter(k=>k in data).map(k=>[k,data[k]])));},async set(patch){Object.assign(data,structuredClone(patch));},async remove(keys){keys.forEach(k=>delete data[k]);},async setAccessLevel(){}});
+   const storage=data=>({async get(keys){return structuredClone(Object.fromEntries((keys===null?Object.keys(data):Array.isArray(keys)?keys:[keys]).filter(k=>k in data).map(k=>[k,data[k]])));},async getBytesInUse(keys=null){const encoder=new TextEncoder();return [...new Set(keys===null?Object.keys(data):Array.isArray(keys)?keys:[keys])].filter(k=>Object.hasOwn(data,k)).reduce((sum,k)=>sum+encoder.encode(k).length+encoder.encode(JSON.stringify(data[k])).length,0);},async set(patch){Object.assign(data,structuredClone(patch));},async remove(keys){keys.forEach(k=>delete data[k]);},async setAccessLevel(){}});
    window.historyTest={local,tabs,created:0};
    window.chrome={storage:{local:storage(local),session:storage(session),onChanged:event()},sidePanel:{async setPanelBehavior(){}},windows:{async update(){}},tabs:{onCreated:event(),onRemoved:event(),onUpdated:event(),onActivated:event(),async query(){return structuredClone(tabs);},async create(tab){historyTest.created++;tabs.push({...tab,id:100+tabs.length});return tabs.at(-1);},async update(){}},runtime:{id:'history-test',getURL:p=>new URL(p,location.origin).href,onInstalled:event(),onStartup:event(),onMessage:event(),async sendMessage(message){
     boot??=(async()=>{

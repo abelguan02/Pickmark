@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {storageBytes} from './storage-fixture.js';
 import {bookmarkAIService} from '../extension/bookmark-ai.js';
 import {organizeBookmarksAI} from '../extension/bookmark-ai-workflow.js';
 import {BOOKMARK_KEY,handleBookmarks} from '../extension/bookmarks.js';
 function fixture(count=2,organize){
  const children=Array.from({length:count+2},(_,i)=>({id:String(i),title:'Test '+i,url:'https://example.test/'+i}));
  const store={[BOOKMARK_KEY]:{metadata:{[count]:{url:children[count].url,group:'Saved'},[count+1]:{url:children[count+1].url,group:'待整理',manualGroup:true}},rules:[],revision:0},records:[{group:'History'}]};
- const api={permissions:{contains:async()=>true},bookmarks:{getTree:async()=>[{children}]},storage:{local:{get:async()=>structuredClone(store),set:async v=>Object.assign(store,v)}}};
+ const api={permissions:{contains:async()=>true},bookmarks:{getTree:async()=>[{children}]},storage:{local:{get:async()=>structuredClone(store),getBytesInUse:async keys=>storageBytes(store,keys),set:async v=>Object.assign(store,v)}}};
  const config={provider:'deepseek',model:'test',excluded:[]};
  let calls=[];const service=bookmarkAIService({api,readConfig:async()=>structuredClone(config),readKeys:async()=>({deepseek:'fake'}),serial:fn=>fn(),organize:async(...args)=>{calls.push(args);return organize?organize(...args):{assignments:args[0].map(r=>({id:r.id,group:'AI'}))};}});
  const send=async m=>{const result=await service(m);return result.pending??result;};

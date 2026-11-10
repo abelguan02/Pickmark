@@ -1,4 +1,4 @@
-import {dayKey, defaults} from './core.js?v=20260917-15';
+import {dayKey, defaults} from './core.js';
 // Fully fictional public demo; titles describe scenarios, not a user browsing history.
 const groups = [
   [
@@ -190,8 +190,5 @@ const groups = [
 ];
 export function demoState(){
  const records=groups.flatMap(([group,tabs])=>tabs.map(([title,domain],i)=>({id:`${group}-${i}`,title,domain,url:`https://${domain}/demo/${encodeURIComponent(group)}/${i}`,group,day:dayKey(),firstSeen:Date.now(),lastSeen:Date.now(),activations:0})));
- const base=new Date();base.setHours(9,0,0,0);let at=base.getTime();
- const order=[0,3,8,0,9,15,8,3,20,0,30,8,32,3,0,37,38,15,0,8,20,30,3,15];
- const visits=order.map((index,i)=>{const record=records[index],start=at;at+=(i%5+2)*60000;return {...record,start,end:at,chain:'demo-morning',visit:'demo-'+i,mode:record.domain==='bilibili.com'?'video':'active'};});
- return {demoVersion:1,visits,reviewDemo:true,records,config:defaults(),tabs:records.map((r,i)=>({id:i,url:r.url})),today:dayKey(),hasKey:false};
+ return {demoVersion:1,records,config:defaults(),tabs:records.map((r,i)=>({id:i,url:r.url})),today:dayKey(),hasKey:false};
 }

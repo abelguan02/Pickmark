@@ -5,7 +5,6 @@ const E=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','
 const DOTS={'0':['01110','10001','10001','10001','10001','10001','01110'],'1':['00100','01100','00100','00100','00100','00100','01110'],'2':['01110','10001','00001','00010','00100','01000','11111'],'3':['11110','00001','00001','01110','00001','00001','11110'],'4':['00010','00110','01010','10010','11111','00010','00010'],'5':['11111','10000','11110','00001','00001','10001','01110'],'6':['00110','01000','10000','11110','10001','10001','01110'],'7':['11111','00001','00010','00100','01000','01000','01000'],'8':['01110','10001','10001','01110','10001','10001','01110'],'9':['01110','10001','10001','01111','00001','00010','01100'],':':['0','0','1','0','1','0','0']};
 function DM(str){let x=0,dots='';for(const ch of String(str)){const g=DOTS[ch];if(!g)continue;g.forEach((row,y)=>[...row].forEach((b,c)=>{dots+=`<circle class="${b==='1'?'on':'off'}" cx="${x+c+.5}" cy="${y+.5}" r=".4"/>`;}));x+=g[0].length+1;}const w=Math.max(1,x-1);return `<svg class="dm" viewBox="0 0 ${w} 7" style="--w:${w}" role="img" aria-label="${E(str)}" fill="currentColor">${dots}</svg>`;}
 const PIXELS={workspace:['..####.....','.#....#....','###########','#.........#','#.........#','#.........#','#.........#','#.........#','###########'],
-review:['...#####...','..#.....#..','.#...#...#.','#....#....#','#....###..#','#.........#','.#.......#.','..#.....#..','...#####...'],
 history:['...........','.....#....#','....##...##','...###..###','..####.####','...###..###','....##...##','.....#....#','...........'],
 folders:['####.......','#...#......','#....######','#.........#','#.........#','#.........#','#.........#','#.........#','###########'],
 smart:['.....#.....','.....#.....','....###....','..#######..','###########','..#######..','....###....','.....#.....','.....#.....'],
@@ -15,8 +14,15 @@ settings:['....###....','.#.#####.#.','..#######..','.###...###.','####...####',
 function PIX(v){const g=PIXELS[v]||PIXELS.workspace;let d='';g.forEach((row,y)=>[...row].forEach((b,x)=>{d+=`<circle class="${b==='#'?'on':'off'}" cx="${x+.5}" cy="${y+.5}" r=".4"/>`;}));return `<svg class="dm pix" viewBox="0 0 ${g[0].length} ${g.length}" style="--w:${g[0].length*7/g.length}" fill="currentColor">${d}</svg>`;}
 const FAVC={'github.com':'#24292F','figma.com':'#A259FF','developer.mozilla.org':'#1B1B1B','stackoverflow.com':'#F48024','npmjs.com':'#CB3837','learn.microsoft.com':'#0078D4','wikipedia.org':'#3A3A3A','zh.wikipedia.org':'#3A3A3A','youtube.com':'#FF0033','css-tricks.com':'#E8A33D','canva.com':'#00C4CC','unsplash.com':'#111111','pinterest.com':'#E60023','behance.net':'#1769FF','dribbble.com':'#EA4C89','fonts.google.com':'#4285F4','adobe.com':'#FA0F00','maps.google.com':'#34A853','mail.google.com':'#EA4335','calendar.google.com':'#1A73E8','drive.google.com':'#FBBC04','notion.so':'#111111','trello.com':'#0079BF','slack.com':'#4A154B','open.spotify.com':'#1DB954','bilibili.com':'#00A1D6','booking.com':'#003580','airbnb.com':'#FF385C','react.dev':'#149ECA','typescriptlang.org':'#3178C6','developer.chrome.com':'#1A73E8','web.dev':'#3740FF','vitejs.dev':'#646CFF','playwright.dev':'#2EAD33','linear.app':'#5E6AD2','sspai.com':'#D7191A','xiaohongshu.com':'#FF2442','taobao.com':'#FF5000','strava.com':'#FC4C02','news.ycombinator.com':'#FF6600','nasa.gov':'#0B3D91','apod.nasa.gov':'#0B3D91','book.douban.com':'#2E963D','douban.com':'#2E963D','12306.cn':'#3B7BD8','dianping.com':'#FF6633','bbc.com':'#B80000'};
 const FAVP=['#5B5BD6','#0E9F6E','#D97706','#DB2777','#2563EB','#7C3AED','#0891B2','#B45309','#4D7C0F','#BE123C'];
-function favColor(d){if(FAVC[d])return FAVC[d];let h=0;for(const c of d)h=(h*31+c.charCodeAt(0))>>>0;return FAVP[h%FAVP.length];}
-function siteName(r){return r.title.includes(' · ')?r.title.split(' · ')[0]:r.domain.split('.')[0].replace(/^./,c=>c.toUpperCase());}
+function favColor(d){d=d.replace(/^www\./i,'');if(FAVC[d])return FAVC[d];let h=0;for(const c of d)h=(h*31+c.charCodeAt(0))>>>0;return FAVP[h%FAVP.length];}
+function siteName(r){return r.title.includes(' · ')?r.title.split(' · ')[0]:r.domain.replace(/^www\./i,'').split('.')[0];}
 function pageTitle(r){return r.title.includes(' · ')?r.title.split(' · ').slice(1).join(' · '):r.title;}
-function FAV(r,cls=''){const n=siteName(r),ch=[...n][0]||'?';return `<span class="fav ${cls}" style="--fc:${favColor(r.domain)}" aria-hidden="true">${E(/[a-z]/i.test(ch)?ch.toUpperCase():ch)}</span>`;}
-export {I,E,DM,PIX,FAV};
+function FAV(r,cls=''){
+ const n=siteName(r),ch=[...n][0]||'?';let image='';
+ if(globalThis.chrome?.runtime?.getURL&&/^https?:\/\//i.test(r.url)){
+  const src=new URL(chrome.runtime.getURL('_favicon/'));src.searchParams.set('pageUrl',r.url);src.searchParams.set('size','32');
+  image=`<img class="site-favicon" src="${E(src.href)}" alt="" loading="lazy" decoding="async">`;
+ }
+ return `<span class="fav ${cls}" style="--fc:${favColor(r.domain)}" aria-hidden="true">${image}${E(/[a-z]/i.test(ch)?ch.toUpperCase():ch)}</span>`;
+}
+export {I,E,DM,PIX,FAV,siteName};

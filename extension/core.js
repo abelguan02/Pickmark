@@ -2,7 +2,7 @@ import {t,getLanguage} from './i18n.js';
 import {retainProtected,HISTORY_BYTES} from './storage-budget.js';
 import {retentionCutoff,retentionDays} from './retention-policy.js';
 export const UNGROUPED = '待整理';
-// Historical snapshots are independent of today's ownership and activity visits.
+// Historical snapshots are independent of today's ownership and the open-page ownership.
 export function historyCandidates(records,day,config) {
   return records.filter(r=>r.day===day&&!r.manualGroup&&r.group===UNGROUPED&&
     (!r.snapshotGroup||r.snapshotGroup===UNGROUPED)&&eligible(r,config));
@@ -15,11 +15,11 @@ export function removeReadingStatus(records) {
     return page;
   });
 }
-export const defaults = () => ({recording: true, retentionDays: 30, idleSeconds: 300, savedPreference: '', savePreference: false, excluded: [], rules: [], provider: 'deepseek', model: 'deepseek-flash', providerModels: {}, workspaceOrder: [], workspaces: [], workspaceRevision: 0});
+export const defaults = () => ({recording: true, retentionDays: 30, savedPreference: '', savePreference: false, excluded: [], rules: [], provider: 'deepseek', model: 'deepseek-flash', providerModels: {}, workspaceOrder: [], workspaces: [], workspaceRevision: 0});
 // Compare only fields edited by the settings form; unrelated rule edits are safe.
 export function settingsSignature(config) {
   const c={...defaults(),...config};
-  return JSON.stringify([c.recording,c.excluded,c.provider,c.model,c.idleSeconds,retentionDays(c),c.settingsRevision||0]);
+  return JSON.stringify([c.recording,c.excluded,c.provider,c.model,retentionDays(c),c.settingsRevision||0]);
 }
 export function assertSettingsCurrent(config,expected) {
   if(expected!==settingsSignature(config))throw new Error(t('设置已在其他窗口更新，请关闭并重新打开设置后再保存。'));
@@ -49,25 +49,35 @@ export function classify(title, domain, rules) {
   return rules.find(r => text.includes(r.keyword.toLowerCase()))?.group || UNGROUPED;
 }
 export function collect(records, tabs, config, time = Date.now(), activeId = null) {
-  const day = dayKey(time);
+  const day = dayKey(time),today=new Map(),previous=new Map(),pages=new Map(),next=records.slice();
+  records.forEach((r,index)=>{if(r.day===day&&!today.has(r.url))today.set(r.url,index);previous.set(r.url,r);});
   for (const tab of tabs.filter(t => eligible(t, config))) {
-    let item = records.find(r => r.day === day && r.url === tab.url);
+    const page=pages.get(tab.url);
+    if(page){page.title=tab.title||page.title;page.active||=tab.id===activeId;}
+    else pages.set(tab.url,{tab,title:tab.title,active:tab.id===activeId});
+  }
+  for(const {tab,title,active} of pages.values()){
+    const index=today.get(tab.url);
+    let item=index===undefined?null:records[index];
     if (!item) {
       const domain = new URL(tab.url).hostname;
-      const previous = records.findLast(r => r.url === tab.url);
-      item = {id: crypto.randomUUID(), day, url: tab.url, domain, title: tab.title || domain, group: previous?.group || classify(tab.title || '', domain, config.rules), aiTitle: previous?.aiTitle || '', manualGroup: previous?.manualGroup || false, firstSeen: time, lastSeen: time, activations: 0};
-      records.push(item);
+      const prior=previous.get(tab.url);
+      item = {id: crypto.randomUUID(), day, url: tab.url, domain, title: title || domain, group: prior?.group || classify(tab.title || '', domain, config.rules), aiTitle: prior?.aiTitle || '', manualGroup: prior?.manualGroup || false, firstSeen: time, lastSeen: time, activations: 0};
+      if(active){item.activations++;item.lastActivated=time;}
+      next.push(item);
+    }else if(active||title&&title!==item.title||!item.lastSeen||time-item.lastSeen>=60000||time<item.lastSeen){
+      // Unchanged open pages need at most one lastSeen checkpoint per minute.
+      item={...item,title:title||item.title,lastSeen:time};
+      if(active){item.activations++;item.lastActivated=time;}
+      next[index]=item;
     }
-    item.title = tab.title || item.title;
-    item.lastSeen = time;
-    if (tab.id === activeId) { item.activations++; item.lastActivated = time; }
   }
-  const retained=retainRecords(records,config,time);
-  if(retained.length===records.length)return retained;
+  const retained=retainRecords(next,config,time);
+  if(retained.length===next.length)return retained;
   // When open pages exceed the budget, use a stable tab order. Otherwise each
   // refresh appends evicted pages and evicts the pages just classified by AI.
   const tabOrder=new Map(tabs.map((tab,index)=>[tab.url,index]));
-  return retainRecords([...records].sort((a,b)=>a.day.localeCompare(b.day)||
+  return retainRecords(next.sort((a,b)=>a.day.localeCompare(b.day)||
     (a.day===day?(tabOrder.get(a.url)??-1)-(tabOrder.get(b.url)??-1):0)),config,time);
 }
 export function retainRecords(records,config,time=Date.now()) {
@@ -96,7 +106,7 @@ export function autoCandidates(records) {
   return records.filter(r => !r.manualGroup && r.aiTitle !== r.title && (r.group === UNGROUPED || !!r.aiTitle));
 }
 export function canAssign(record, assignment) {
-  return record && (!Object.hasOwn(assignment, 'baseTitle') || (record.title === assignment.baseTitle && record.group === assignment.baseGroup && !!record.manualGroup === !!assignment.baseManual));
+  return record && typeof assignment?.baseTitle==='string' && typeof assignment.baseGroup==='string' && typeof assignment.baseManual==='boolean' && record.title===assignment.baseTitle && record.group===assignment.baseGroup && !!record.manualGroup===assignment.baseManual;
 }
 
 // Resolve by keyword and expected value, never by a stale UI row index.

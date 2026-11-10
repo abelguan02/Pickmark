@@ -82,6 +82,36 @@ test('late AI responses cannot override title changes or manual workspace moves'
  assert.ok(!canAssign(undefined,assignment));
 });
 
+test('AI assignments require every baseline field with its original type',()=>{
+ const record={title:'A',group:'研究',manualGroup:false};
+ const base={baseTitle:'A',baseGroup:'研究',baseManual:false};
+ for(const key of Object.keys(base)){const assignment={...base};delete assignment[key];assert.ok(!canAssign(record,assignment),key);}
+ for(const baseManual of [undefined,0,'',null])assert.ok(!canAssign(record,{...base,baseManual}));
+ assert.ok(!canAssign({...record,manualGroup:true},{group:'覆盖'}));
+});
+
+test('unchanged collection keeps rows stable between minute checkpoints and preserves activation events',()=>{
+ const now=new Date(2026,8,15,10).getTime(),config=defaults();
+ const tabs=[{id:1,url:'https://same.test/',title:'First'},{id:2,url:'https://same.test/',title:'Last'}];
+ const records=collect([],tabs,config,now),before=structuredClone(records);
+ const unchanged=collect(records,tabs,config,now+1000);
+ assert.deepEqual(unchanged,before);assert.equal(unchanged[0],records[0]);
+ const checkpoint=collect(records,tabs,config,now+60000);
+ assert.equal(checkpoint[0].lastSeen,now+60000);assert.deepEqual(records,before);
+ const active=collect(records,tabs,config,now+2000,1);
+ assert.equal(active[0].activations,1);assert.equal(active[0].lastActivated,now+2000);
+ assert.equal(active[0].title,'Last');assert.deepEqual(records,before);
+});
+
+test('indexed collection preserves first-title rules, last nonempty titles and previous-day manual groups',()=>{
+ const now=new Date(2026,8,15,10).getTime(),config={...defaults(),rules:[{keyword:'first',group:'Rule'}]};
+ const old={id:'old',day:dayKey(now-86400000),url:'https://old.test/',title:'Old',group:'Human',manualGroup:true,aiTitle:'Old'};
+ const tabs=[{id:1,url:'https://new.test/',title:'First'},{id:2,url:'https://new.test/',title:'Last'},{id:3,url:'https://new.test/',title:''},{id:4,url:old.url,title:'New title'}];
+ const collected=collect([old],tabs,config,now,2);
+ assert.equal(collected.length,3);assert.equal(collected[1].title,'Last');assert.equal(collected[1].group,'Rule');assert.equal(collected[1].activations,1);
+ assert.equal(collected[2].group,'Human');assert.equal(collected[2].manualGroup,true);assert.equal(collected[2].aiTitle,'Old');
+});
+
 test('rule editing preserves priority and rejects duplicate keywords atomically', async()=>{
  const {updateRules,classify}=await import('../extension/core.js');
  const rules=[{keyword:'video',group:'视频'},{keyword:'example',group:'研究'}];

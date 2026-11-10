@@ -10,6 +10,7 @@ try{
  const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));let cases=0;
  for(const width of [390,700,1440])for(const mode of ['tabs','bookmarks']){
   await p.setViewportSize({width,height:600});await p.goto('http://127.0.0.1:4196/dashboard.html');
+  await p.waitForFunction(()=>window.reviewUI&&document.querySelector('.item'));
   await p.evaluate(()=>{window.closedRows=[];window.reviewUI.api.close=r=>window.closedRows.push(r.id);});
   if(mode==='bookmarks'){await p.locator('[data-mode=bookmarks]').click();await p.locator('[data-pm=connect]').click();}
   await p.locator('.item').first().hover();await p.keyboard.press('ArrowDown');

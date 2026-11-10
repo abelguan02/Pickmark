@@ -49,6 +49,30 @@ try{
   await p.locator(`[data-mode=${mode}]`).click();
   if(mode==='bookmarks'&&!await p.locator('.item').count())await p.locator('[data-pm=connect]').click();
   await p.locator('.item').first().waitFor();
+  await worker.evaluate(async()=>chrome.storage.local.set({'pickmark-auto-preview-v1':false,'pickmark-thumbnails-v1':{}}));
+  await p.locator('.preview-notice').waitFor();
+  await p.waitForFunction(text=>document.querySelector('.preview-notice span')?.textContent===text,lang==='zh'?'自动预览未开启':'Automatic previews are off');
+  assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  if(mode==='tabs'&&lang==='zh'&&process.env.REVIEW_OUTPUT_DIR){
+   await p.locator('#rail').evaluate(e=>Promise.all(e.getAnimations().map(a=>a.finished.catch(()=>{}))));
+   if(width===320)assert.ok(await p.locator('#rail').evaluate(e=>e.getBoundingClientRect().right<=1),'The closed narrow sidebar is fully off screen');
+   fs.mkdirSync(process.env.REVIEW_OUTPUT_DIR,{recursive:true});await p.screenshot({path:path.join(process.env.REVIEW_OUTPUT_DIR,`preview-off-${theme}-${width}.png`)});
+  }
+  await p.locator('.preview-notice button').click();await p.locator('#mono-auto-preview').waitFor();
+  await p.waitForFunction(()=>document.activeElement===document.querySelector('#mono-auto-preview'));
+  assert.equal(await worker.evaluate(()=>(chrome.storage.local.get('pickmark-auto-preview-v1')).then(v=>v['pickmark-auto-preview-v1'])),false,'Opening settings does not silently enable capture');
+  assert.match(await p.locator('#mono-auto-preview').locator('..').textContent(),lang==='zh'?/只存本机.*不发送给 AI/:/stay local.*never sent to AI/);
+  if(cases===0){
+   await p.evaluate(()=>{window.savedPermissionRequest=chrome.permissions.request;chrome.permissions.request=async()=>false;});
+   await p.locator('#mono-auto-preview').click();
+   await p.waitForFunction(()=>document.querySelector('#toast').textContent.includes('未获授权'));
+   assert.equal(await worker.evaluate(()=>(chrome.storage.local.get('pickmark-auto-preview-v1')).then(v=>v['pickmark-auto-preview-v1'])),false);
+   await p.evaluate(()=>{chrome.permissions.request=window.savedPermissionRequest;});
+  }
+  await p.locator('#mono-auto-preview').click();
+  await p.waitForFunction(()=>document.querySelector('#mono-auto-preview')?.getAttribute('aria-pressed')==='true');
+  await p.locator(`[data-mode=${mode}]`).click();await p.locator('.item').first().waitFor();
+  assert.equal(await p.locator('.preview-notice').isVisible(),false,'The reminder disappears when capture is enabled');
   await worker.evaluate(async()=>{previewFixture.hold=false;previewFixture.failure=false;await chrome.storage.local.set({'pickmark-thumbnails-v1':{}});});
   await p.evaluate(()=>previewReviewUI.preview(previewReviewUI.rows[0],true));
   await p.locator('#mono-preview [data-preview-state=pending]').waitFor();
@@ -117,5 +141,5 @@ try{
  const assignments=data=>data.records.map(({lastSeen,...record})=>record);
  assert.deepEqual(assignments(after),assignments(saved),'Preview updates preserve records and manual assignments; normal browsing may advance lastSeen');
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
- console.log(`PASS ${cases} extension UI cases plus paused/manual-grant progress, quota failure and retry: tabs/bookmarks, zh/en, light/dark, 320/1280px; concise states, contextual authorization and unchanged automatic-capture limits; no external pages or personal data`);
+ console.log(`PASS ${cases} extension UI cases plus auto-preview-off reminder, settings focus, denied consent, enable/reminder removal, paused/manual-grant progress, quota failure and retry: tabs/bookmarks, zh/en, light/dark, 320/1280px; no external pages or personal data`);
 }finally{if(context)await context.close();fs.rmSync(temp,{recursive:true,force:true});}

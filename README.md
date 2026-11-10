@@ -4,7 +4,7 @@
 
 拾签是一个桌面 Chrome 扩展。打开的标签页多了，可以按网站找回同一站点的几篇文章，也可以把不同网站的资料放进同一个主题。隔天打开「继续浏览」，还能从昨天的页面清单接着读。
 
-**版本与下载**　下图来自开发版 **0.1.22**。GitHub 上可安装的公开版本是 **0.1.9**，仓库默认分支中的扩展也是 0.1.9。按网站整理和后台补全预览等新版功能尚未随公开包发布。[下载 0.1.9 安装包](https://github.com/abelguan02/Pickmark/releases/download/v0.1.9/Pickmark-0.1.9.zip) · [发布记录](https://github.com/abelguan02/Pickmark/releases)
+**最新版 0.1.22** 支持按网站整理和后台补全预览。下图均来自本版本。[下载 0.1.22 安装包](https://github.com/abelguan02/Pickmark/releases/download/v0.1.22/Pickmark-0.1.22.zip) · [发布说明与 SHA-256 校验文件](https://github.com/abelguan02/Pickmark/releases/tag/v0.1.22)
 
 ![0.1.22 中文工作区，九个标签页分属自然观察、视觉设计和地图与旅行三个主题](docs/screenshots/0.1.22/workspace-zh.png)
 
@@ -40,9 +40,9 @@
 
 ## 安装公开版
 
-1. 下载并解压 [Pickmark-0.1.9.zip](https://github.com/abelguan02/Pickmark/releases/download/v0.1.9/Pickmark-0.1.9.zip)，把解压后的文件夹放在准备长期保留的位置。
+1. 下载并解压 [Pickmark-0.1.22.zip](https://github.com/abelguan02/Pickmark/releases/download/v0.1.22/Pickmark-0.1.22.zip)，把解压后的文件夹放在准备长期保留的位置。
 2. 在桌面 Chrome 打开 `chrome://extensions`，开启**开发者模式**，点击**加载已解压的扩展程序**，选择直接包含 `manifest.json` 的文件夹。如果下载的是整个仓库的源码 ZIP，请选择其中的 `extension/`。
-3. 从工具栏扩展菜单固定拾签，点击图标打开工作区，也可从 Chrome 侧边栏选择拾签。已有安装时，将程序文件更新到原加载目录，再点击原扩展的**重新加载**，以保留本地数据。卸载会删除扩展的本地数据。[0.1.9 安装与更新说明](docs/INSTALL-UPDATE-0.1.9.md)
+3. 从工具栏扩展菜单固定拾签，点击图标打开工作区，也可从 Chrome 侧边栏选择拾签。已有安装时，将程序文件更新到原加载目录，再点击原扩展的**重新加载**，以保留本地数据。卸载会删除扩展的本地数据。[0.1.22 安装与更新说明](docs/INSTALL-UPDATE-0.1.22.md)
 
 ## 0.1.22 的记录与隐私
 
@@ -52,7 +52,7 @@
 | AI 分类 | 本地规则和手动整理无需 Key。启用 AI 后，扩展直接向所选供应商发送分类所需的标题、域名和分类上下文，按供应商规则计费。截图和网页正文不随分类请求发送。主题工作区可见且记录开启时会自动处理待分类页面，每批最多 200 页。 |
 | Key 与备份 | Key 按供应商保存在当前浏览器的扩展本地存储中。规则备份可包含已保存的 AI 偏好；页面记录、图片和 Key 均不在备份内。 |
 
-支持 DeepSeek、OpenAI、Anthropic Claude、Google Gemini、通义千问和 Kimi。曾启用旧版时长统计的用户升级到 0.1.21 或更高版本时，旧计时数据会被清理。公开版 0.1.9 的采集范围和权限另见[该版本的隐私说明](https://github.com/abelguan02/Pickmark/blob/v0.1.9/PRIVACY.md)。
+支持 DeepSeek、OpenAI、Anthropic Claude、Google Gemini、通义千问和 Kimi。曾启用旧版时长统计的用户升级到 0.1.21 或更高版本时，旧计时数据会被清理。本版的采集范围、权限用途与删除方式见[隐私说明](PRIVACY.md)。
 
 ## 关于项目
 

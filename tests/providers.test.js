@@ -54,6 +54,10 @@ test('manifest permissions and CSP cover exactly the supported provider origins'
 test('theme context sends bounded titles and domains without private URLs or reference ids',async t=>{
  t.mock.method(globalThis,'fetch',async(url,init)=>{
   const body=JSON.parse(init.body),payload=JSON.parse(body.messages[1].content);
+  assert.match(body.messages[0].content,/默认采用粗分类/);
+  assert.match(body.messages[0].content,/4至8个大类/);
+  assert.match(body.messages[0].content,/只有一两页的细话题优先并入相关大类/);
+  assert.doesNotMatch(body.messages[0].content,/即使只有一两页，只要主题明确也可以创建/);
   assert.deepEqual(payload.pendingContext,[{title:'New topic',domain:'example.com'}]);
   assert.equal(payload.workspaceExamples[0].group,'学习');
   assert.equal(payload.workspaceExamples[0].pages.length,3);

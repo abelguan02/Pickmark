@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "0.1.9",
+  "version": "0.1.22",
   "description": "__MSG_extensionDescription__",
   "minimum_chrome_version": "114",
   "permissions": [
@@ -9,8 +9,10 @@
     "activeTab",
     "storage",
     "sidePanel",
-    "idle",
-    "alarms"
+    "alarms",
+    "favicon",
+    "scripting",
+    "debugger"
   ],
   "host_permissions": [
     "https://api.deepseek.com/*",
@@ -20,14 +22,21 @@
     "https://dashscope.aliyuncs.com/*",
     "https://api.moonshot.cn/*"
   ],
-  "optional_permissions": ["bookmarks"],
-  "optional_host_permissions": ["<all_urls>"],
+  "optional_permissions": [
+    "bookmarks"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_icon": {"16": "icons/16.png", "32": "icons/32.png"},
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    },
     "default_title": "__MSG_actionTitle__"
   },
   "options_page": "dashboard.html#settings",
@@ -43,18 +52,5 @@
   "side_panel": {
     "default_path": "dashboard.html?surface=sidepanel"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ],
-      "js": [
-        "media.js"
-      ],
-      "all_frames": true,
-      "run_at": "document_idle"
-    }
-  ],
   "default_locale": "zh_CN"
 }

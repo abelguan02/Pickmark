@@ -1,4 +1,4 @@
-import {I,E,FAV} from './offset-icons.js';
+import {I,E,FAV,siteName} from './offset-icons.js';
 import {shell} from './offset-shell.js';
 import {UNGROUPED} from './core.js';
 import {getLanguage,workspaceLabel} from './i18n.js';
@@ -10,17 +10,21 @@ import {brandMark} from './brand-mark.js';
 import {mountHeroFlow} from './hero-flow.js';
 import {installHelp,openAbout,helpLabels,focusAI} from './help-ui.js';
 import {previewAllowed} from './thumbnails.js';
+import {PreviewBatchUI} from './preview-batch-ui.js';
+import {siteKey,siteSections,groupingPreferences} from './grouping.js';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const L=(zh,en)=>getLanguage()==='en'?en:zh;
-const titles={workspace:['工作区','Workspace'],review:['每日回顾','Daily review'],history:['继续浏览','Continue browsing'],folders:['原文件夹','Folders'],smart:['智能分类','Collections'],manage:['工作区管理','Workspaces'],rules:['分类规则','Rules'],settings:['设置与隐私','Settings & privacy']};
-const descriptions={workspace:['正在打开的标签，按主题归位','Open tabs, organized by topic'],review:['今天的注意力去了哪里','Your browsing time and journey'],history:['找回那天留下的页面，保留已有分类与人工调整','Return to saved pages, with your classifications preserved'],folders:['沿用浏览器里的收藏目录','Your original browser bookmark folders'],smart:['按主题重新整理，不动原目录','Organize by topic, keep original folders'],manage:['新建、重命名你的分类','Manage your workspaces'],rules:['让网址自动落进对应分类','Classify pages with local rules'],settings:['外观、预览与隐私','Appearance, previews and privacy']};
+const titles={workspace:['工作区','Workspace'],history:['继续浏览','Continue browsing'],folders:['原文件夹','Folders'],smart:['智能分类','Collections'],manage:['工作区管理','Workspaces'],rules:['分类规则','Rules'],settings:['设置与隐私','Settings & privacy']};
+const descriptions={workspace:['正在打开的标签，按主题归位','Open tabs, organized by topic'],history:['找回那天留下的页面，保留已有分类与人工调整','Return to saved pages, with your classifications preserved'],folders:['沿用浏览器里的收藏目录','Your original browser bookmark folders'],smart:['按主题重新整理，不动原目录','Organize by topic, keep original folders'],manage:['新建、重命名你的分类','Manage your workspaces'],rules:['让网址自动落进对应分类','Classify pages with local rules'],settings:['外观、预览与隐私','Appearance, previews and privacy']};
 const fav=r=>FAV(r);
 const icon=(name,label,attr='')=>`<button type="button" class="tool" aria-label="${E(label)}" title="${E(label)}" ${attr}>${I(name)}</button>`;
 export class OffsetUI{
  constructor(api){
+  document.addEventListener('error',event=>{if(event.target.matches?.('img.site-favicon'))event.target.remove();},true);
   installHelp(()=>{this.rail(false);if(this.panel==='settings'){focusAI();return;}this.pendingAI=true;$('#settings').click();});
   this.api=api;this.mode='tabs';this.bookView='folders';this.panel=null;this.filters={tabs:'',bookmarks:''};this.layouts={tabs:'list',bookmarks:'list'};this.queries={tabs:'',bookmarks:''};this.density='compact';this.book=null;this.selected=null;this.previewEnabled=true;this.autoPreview=false;this.bookLoading=false;this.thumbnails=new Map();this.previewStates=new Map();this.previewToken=0;
-  try{const p=JSON.parse(localStorage.getItem('pickmark-view-v1')||'{}');if(['compact','comfortable'].includes(p.density))this.density=p.density;if(['list','gallery'].includes(p.layout))this.layouts.tabs=p.layout;this.previewEnabled=p.preview!==false;if(p.layout==='cards')localStorage.setItem('pickmark-view-v1',JSON.stringify({...p,layout:'list'}));}catch{}
+  this.grouping=groupingPreferences();
+  try{const p=JSON.parse(localStorage.getItem('pickmark-view-v1')||'{}');this.grouping=groupingPreferences(p.grouping);if(p.grouping?.bookmarks)this.bookView='smart';if(['compact','comfortable'].includes(p.density))this.density=p.density;if(['list','gallery'].includes(p.layout))this.layouts.tabs=p.layout;this.previewEnabled=p.preview!==false;if(p.layout==='cards')localStorage.setItem('pickmark-view-v1',JSON.stringify({...p,layout:'list'}));}catch{}
   const main=$('main.atlas'),header=main.querySelector('header');const legacy=document.createElement('div');legacy.hidden=true;legacy.id='mono-legacy';legacy.append(header);document.body.prepend(legacy);
   const root=document.createElement('div');root.innerHTML=shell;root.querySelector('.brand-logo').innerHTML=brandMark;document.body.prepend(...root.childNodes);$('#mono-placeholder').replaceWith(main);main.id='workspace';main.className='workspace atlas';
   const hero=document.createElement('div');hero.id='mono-hero';main.prepend(hero);
@@ -65,11 +69,14 @@ export class OffsetUI{
    if(b.dataset.pmView)this.navigate(b.dataset.pmView);
    if(b.hasAttribute('data-pm-filter')){this.filters[this.mode]=b.dataset.pmFilter;this.api.render();this.rail(false);}
    if(b.dataset.pmLayout){this.layouts[this.mode]=b.dataset.pmLayout;this.persist();this.api.render();}
+   if(b.dataset.pmGrouping)this.changeGrouping(b.dataset.pmGrouping);
    if(b.dataset.pmDensity){this.density=b.dataset.pmDensity;this.layouts[this.mode]='list';this.persist();this.api.render();}
    if(b.dataset.pm==='organize')this.organize();
    if(b.dataset.pm==='book-ai')this.prepareBookAI();
    if(b.dataset.pm==='cancel-book-ai')this.cancelBookAI();
    if(b.dataset.pm==='refresh')this.refreshCurrent();
+   if(b.dataset.pm==='preview-settings')this.navigate('settings',this.autoPreviewStatus?.requested&&this.autoPreviewStatus.authorized&&!this.autoPreviewStatus.recording?'recording':'preview');
+   if(b.dataset.pm==='preview-retry')void this.syncAutoPreview();
    if(b.dataset.pmPage){this.bookPage=Math.max(0,(this.bookPage||0)+Number(b.dataset.pmPage));this.render();$('#mono-list').scrollIntoView({block:'start'});$('#mono-list [data-pm-page="'+b.dataset.pmPage+'"]')?.focus();}
    if(b.dataset.pm==='regroup'&&this.mode==='tabs'&&this.view==='workspace')$('#reorganize').click();
    if(b.dataset.pm==='connect')this.connectBookmarks();
@@ -97,12 +104,21 @@ export class OffsetUI{
    chrome.permissions?.onRemoved?.addListener(p=>{void this.syncAutoPreview();this.refreshPreviews();if(p.permissions?.includes('bookmarks')){this.book=null;if(this.mode==='bookmarks')this.render();}});
    chrome.permissions?.onAdded?.addListener(()=>{void this.syncAutoPreview();this.refreshPreviews();});
    for(const name of ['onCreated','onRemoved','onChanged','onMoved','onChildrenReordered'])chrome.bookmarks?.[name]?.addListener(()=>{if(this.book&&this.mode==='bookmarks')this.refreshBookmarks();});
-   chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='local')return;if(changes['pickmark-thumbnails-v1'])this.thumbnails.clear();if(changes['pickmark-thumbnails-v1']||changes.config||changes['pickmark-auto-preview-v1'])this.refreshPreviews();if(changes['pickmark-auto-preview-v1'])this.syncAutoPreview();if(changes['pickmark-bookmarks-v1']&&this.book&&this.mode==='bookmarks')this.refreshBookmarks();});
-   chrome.runtime.onMessage?.addListener((message,sender)=>{if(sender.id===chrome.runtime.id&&message.type==='preview:changed'&&typeof message.url==='string')this.refreshPreviews(message.url);});
+   chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='local')return;if(changes['pickmark-thumbnails-v1'])this.thumbnails.clear();if(changes['pickmark-thumbnails-v1']||changes.config||changes['pickmark-auto-preview-v1'])this.refreshPreviews();if(changes['pickmark-auto-preview-v1']||changes.config)this.syncAutoPreview();if(changes['pickmark-bookmarks-v1']&&this.book&&this.mode==='bookmarks')this.refreshBookmarks();});
+   chrome.runtime.onMessage?.addListener((message,sender)=>{if(sender.id!==chrome.runtime.id)return;if(message.type==='preview:changed'&&typeof message.url==='string')this.refreshPreviews(message.url);if(message.type==='preview:cacheChanged'){this.thumbnails.clear();this.refreshPreviews();}});
    void this.syncAutoPreview();
   }
+  this.previewBatch=new PreviewBatchUI(this.api);
  }
- persist(){try{localStorage.setItem('pickmark-view-v1',JSON.stringify({density:this.density,layout:this.layouts.tabs,preview:this.previewEnabled}));}catch{}}
+ persist(){try{localStorage.setItem('pickmark-view-v1',JSON.stringify({density:this.density,layout:this.layouts.tabs,preview:this.previewEnabled,grouping:this.grouping}));}catch{}}
+ changeGrouping(value){
+  if(this.grouping[this.mode]===value&&(this.mode==='tabs'||this.bookView==='smart'))return;
+  if(this.bookAIRunning)this.cancelBookAI();
+  this.grouping[this.mode]=value;this.filters[this.mode]='';this.selected=null;
+  if(this.mode==='bookmarks')this.bookView='smart';
+  this.clearPreview();this.persist();this.api.render();this.api.groupingChanged();
+  $(`[data-pm-grouping="${value}"]`)?.focus({preventScroll:true});
+ }
  color(){document.documentElement.classList.toggle('night',document.documentElement.dataset.colorScheme==='dark');this.themeLabels();}
  themeLabels(){
   const mode=window.atlasColorMode.value,labels={light:L('浅色','Light'),dark:L('深色','Dark'),system:L('跟随系统','System')};
@@ -113,24 +129,44 @@ export class OffsetUI{
   for(const button of menu.querySelectorAll('button')){const value=button.dataset.appearance;button.setAttribute('aria-checked',String(value===mode));button.innerHTML=glyph(value)+'<span>'+labels[value]+'</span><span class="appearance-check">'+(value===mode?I('check'):'')+'</span>';}
  }
  get view(){return this.panel||(this.mode==='bookmarks'?this.bookView:this.api.view());}
- get allowsAuto(){return this.mode==='tabs'&&!this.panel;}
- filterRows(rows){return this.filters.tabs?rows.filter(r=>r.group===this.filters.tabs):rows;}
- get rows(){if(this.mode==='tabs')return this.api.rows();const q=$('#search').value.toLowerCase().trim(),key=this.bookView==='folders'?'folder':'group';return (this.book?.rows||[]).filter(r=>(!this.filters.bookmarks||r[key]===this.filters.bookmarks)&&(!q||`${r.title} ${r.domain} ${r.group} ${r.folder}`.toLowerCase().includes(q)));}
+ get siteGrouping(){return this.grouping?.[this.mode]==='site'&&(this.mode!=='bookmarks'||this.bookView!=='folders');}
+ get allowsAuto(){return this.mode==='tabs'&&!this.panel&&!this.siteGrouping;}
+ filterRows(rows){return this.filters.tabs?rows.filter(r=>(this.grouping?.tabs==='site'?siteKey(r):r.group)===this.filters.tabs):rows;}
+ get rows(){if(this.mode==='tabs')return this.api.rows();const q=$('#search').value.toLowerCase().trim(),key=this.bookView==='folders'?'folder':'group';return (this.book?.rows||[]).filter(r=>(!this.filters.bookmarks||(this.siteGrouping?siteKey(r):r[key])===this.filters.bookmarks)&&(!q||`${r.title} ${r.domain} ${r.group} ${r.folder}`.toLowerCase().includes(q)));}
  railAccess(){$('#rail').inert=innerWidth<=800&&!$('#rail').classList.contains('open');}
- alignCategories(){
+ alignCategories(scrollTop=$('.nav-scroll')?.scrollTop||0){
   cancelAnimationFrame(this.categoryAlignmentFrame);
   this.categoryAlignmentFrame=requestAnimationFrame(()=>{
    const categories=$('.nav-cats');if(!categories)return;categories.style.marginTop='';
-   if(innerWidth<=800||this.panel||this.layouts[this.mode]!=='list')return;
-   const first=$('#mono-list .item'),all=$('.nav.cat'),primary=$('.nav-primary');if(!first||!all||!primary)return;
-   // Match the unscrolled document position; later page scrolling stays independent.
-   const delta=first.getBoundingClientRect().top+scrollY-all.getBoundingClientRect().top;
-   const availableGap=Math.max(0,parseFloat(getComputedStyle(primary).marginBottom)-4);
-   categories.style.marginTop=Math.max(-availableGap,delta)+'px';
+   const scroller=categories.querySelector('.nav-scroll');
+   if(innerWidth>800&&!this.panel&&this.layouts[this.mode]==='list'){
+    const first=$('#mono-list .item'),all=$('.nav.cat'),primary=$('.nav-primary');
+    if(first&&all&&primary){
+     // Compare unscrolled positions on both sides; category scrolling must not
+     // change the sidebar's top spacing when a selection refreshes the list.
+     const delta=first.getBoundingClientRect().top+scrollY-(all.getBoundingClientRect().top+scroller.scrollTop);
+     const availableGap=Math.max(0,parseFloat(getComputedStyle(primary).marginBottom)-4);
+     categories.style.marginTop=Math.max(-availableGap,delta)+'px';
+    }
+   }
+   scroller.scrollTop=scrollTop;
   });
  }
  rail(open){$('#rail').classList.toggle('open',open);$('#rail-overlay').hidden=!open;$('#menu').setAttribute('aria-expanded',open);this.railAccess();if(open)$('#brand').focus();else if(innerWidth<=800)$('#menu').focus();}
- changeMode(mode,keepManagement=true){if(mode===this.mode)return;const management=keepManagement&&['manage','rules'].includes(this.panel)?this.panel:null;this.navigationId=(this.navigationId||0)+1;if(this.bookAIRunning)this.cancelBookAI();this.queries[this.mode]=$('#search').value;this.closePanel();this.mode=mode;$('#search').value=this.queries[mode];this.selected=null;this.clearPreview();this.api.render();if(management)this.navigate(management);if(mode==='bookmarks'&&this.api.extension)this.checkBookmarks();}
+ async changeMode(mode,keepManagement=true){
+  const navigation=this.navigationId=(this.navigationId||0)+1;
+  this.pendingPreviewSettings=null;
+  if(mode===this.mode){if(this.panel==='settings')this.navigate(mode==='tabs'?this.api.view():this.bookView);return;}
+  const management=keepManagement&&['manage','rules'].includes(this.panel)?this.panel:null;
+  if(management&&mode==='tabs'){
+   try{await this.api.refresh();}catch(error){if(navigation===this.navigationId)this.api.toast(error.message);return;}
+   if(navigation!==this.navigationId)return;
+  }
+  if(this.bookAIRunning)this.cancelBookAI();this.queries[this.mode]=$('#search').value;this.closePanel();this.mode=mode;$('#search').value=this.queries[mode];this.selected=null;this.clearPreview();
+  if(management){if(mode==='tabs')this.api.showManagement(management);else{this.panel=management;this.render();}}
+  else this.api.render();
+  if(mode==='bookmarks'&&this.api.extension)this.checkBookmarks();
+ }
  async checkBookmarks(){try{if(await chrome.permissions.contains({permissions:['bookmarks']}))await this.refreshBookmarks();}catch(e){this.api.toast(e.message);}}
  async connectBookmarks(){try{
   if(this.api.extension&&!await chrome.permissions.request({permissions:['bookmarks']}))return;
@@ -145,13 +181,15 @@ export class OffsetUI{
   else this.book=changeBookmarks(this.book,message);
   this.render();
  }
- async navigate(view){
+ async navigate(view,focus){
   this.navigationId=(this.navigationId||0)+1;
-  this.clearPreview();this.rail(false);this.closePanel();
+  this.pendingPreviewSettings=view==='settings'?focus:null;
+  this.clearPreview();this.rail(false);
   if(['settings','manage','rules'].includes(view)){
-   if(this.mode==='bookmarks'&&view!=='settings'){this.panel=view;this.render();return;}
+   if(this.mode==='bookmarks'&&view!=='settings'){this.closePanel();this.panel=view;this.render();return;}
    const trigger={settings:'settings-shortcut',manage:'workspaces-button',rules:'rules-button'}[view];$('#'+trigger).click();return;
   }
+  this.closePanel();
   this.filters[this.mode]='';if(this.mode==='bookmarks'){this.bookView=view;this.render();}else this.api.switchView(view);
   window.scrollTo(0,0);
  }
@@ -159,6 +197,7 @@ export class OffsetUI{
   if(id==='settings-dialog')this.settingsExtras(dialog);
   if(!dialog.dataset.monoBound){dialog.dataset.monoBound='true';dialog.addEventListener('close',()=>{if(!dialog.open&&dialog.classList.contains('mono-page')&&this.panel===view){this.panel=null;dialog.classList.remove('mono-page');document.body.append(dialog);this.api.render();}});}
   this.render();window.scrollTo(0,0);if(view==='settings'&&this.pendingAI){this.pendingAI=false;focusAI();}
+  if(view==='settings'&&this.pendingPreviewSettings){const control=$(this.pendingPreviewSettings==='recording'?'#recording':'#mono-auto-preview');this.pendingPreviewSettings=null;control.scrollIntoView({block:'center',behavior:'instant'});control.focus({preventScroll:true});}
  }
  closePanel(){const previous=this.panel;this.panel=null;for(const d of $$('#mono-panel dialog.mono-page')){d.close();d.classList.remove('mono-page');document.body.append(d);}$('#mono-panel').replaceChildren();return previous;}
  settingsExtras(dialog){if(!$('#mono-appearance')){
@@ -179,7 +218,6 @@ export class OffsetUI{
   const disclosure=document.createElement('details');disclosure.className='settings-disclosure ai-data';
   disclosure.innerHTML='<summary></summary>';disclosure.append(privacy.querySelector('.privacy-box'));right.append(disclosure);
   grid.append(privacy,storage,$('#mono-about'));form.append(actions);
-  for(const input of ['idle-seconds','excluded']){const label=$('#'+input).closest('label'),help=label.nextElementSibling;const field=document.createElement('div');field.className='settings-field';label.before(field);field.append(label,help);}
   $('#mono-auto-preview').onclick=()=>this.setAutoPreview(!this.autoPreview);
   void this.syncAutoPreview();
  }this.appearanceLabels();}
@@ -189,7 +227,7 @@ export class OffsetUI{
   $('#open-about-help').textContent=L('关于与帮助 →','About & help →');
   $('.settings-disclosure.ai-data summary').textContent=L('AI 处理与隐私','AI processing & privacy');
   block.querySelector('.preview-capture-details summary').textContent=L('采集范围与缓存','Capture & cache');
-  block.querySelector('[data-preview-details]').textContent=L('网页加载完成并在前台停留片刻后生成，无需滚动。暂停记录时停止采集；邮箱和排除网站不采集。缓存最多 100 张 / 1.5 MB，保留 7 天。','A loaded foreground page is captured after a short pause; no scrolling is needed. Capture stops when recording is paused. Email and excluded sites are skipped. Up to 100 images / 1.5 MB, kept for 7 days.');
+  block.querySelector('[data-preview-details]').textContent=L('自动采集在网页加载完成并于前台停留片刻后进行；暂停记录时停止。「补全预览」会在静音的后台标签页处理当前列表。Chrome 会显示调试提示条，可随时取消。书签仅处理当前分页，临时页面不计入拾签历史。邮箱和排除网站不采集。图片独立存储在本机，最多 500 张 / 50 MB，保留 7 天。','Automatic capture runs after a loaded page stays in the foreground briefly and stops when recording is paused. Fill previews processes the current list in a muted background tab. Chrome displays a debugging banner. You can cancel at any time. Bookmarks are limited to the current page. Temporary pages are excluded from Pickmark history. Email and excluded sites are skipped. Images use a separate local cache: up to 500 images / 50 MB, kept for 7 days.');
   const rows=block.querySelectorAll('.setting-row');
   rows[0].querySelector('strong').textContent=L('悬停缩略图','Hover previews');
   rows[0].querySelector('button').textContent=this.previewEnabled?L('开启','On'):L('关闭','Off');
@@ -203,16 +241,19 @@ export class OffsetUI{
   this.closeActions();this.appearanceLabels();
   this.themeLabels();
   document.body.dataset.indexLayout=this.layouts[this.mode];
-  const state=this.api.state();if(!state)return;this.clearPreview();const view=this.view,rows=this.rows,book=this.mode==='bookmarks',panel=!!this.panel,reviewSearch=view==='review'&&!!$('#search').value.trim();
+  const state=this.api.state();if(!state)return;this.clearPreview();const view=this.view,rows=this.rows,book=this.mode==='bookmarks',panel=!!this.panel;
+  const pageKey=this.mode+':'+view,changingPage=this.renderedPage&&this.renderedPage!==pageKey;this.renderedPage=pageKey;
   document.body.classList.add('offset-live');document.documentElement.classList.toggle('dense',this.density==='compact');document.body.dataset.monoView=view;
-  const names=titles[view]||titles.workspace,desc=descriptions[view]||descriptions.workspace;
+  const names=titles[view]||titles.workspace,desc=this.siteGrouping&&view==='smart'?['按网站聚合，保留主题分类','Group by website; keep topic categories']:descriptions[view]||descriptions.workspace;
   const count=view==='manage'?(book?new Set([...(this.book?.groups||[]),...(this.book?.rows||[]).map(r=>r.group),...(this.book?.rules||[]).map(r=>r.group)].filter(g=>g!==UNGROUPED)).size:this.api.names().length):view==='rules'?(book?this.book?.rules.length||0:state.config.rules.length):view==='settings'?3:rows.length;
   const label=panel?L('项','items'):book?L('条书签','bookmarks'):L('个页面','pages');
   const pending=rows.filter(r=>r.group===UNGROUPED&&!r.manualGroup).length;
-  const heroIcon={workspace:'tabs',folders:'folder',smart:'spark',review:'clock',history:'history',manage:'grid',rules:'list',settings:'settings'}[view]||'folder';
+  const topicActions=!this.siteGrouping;
+  const heroIcon={workspace:'tabs',folders:'folder',smart:'spark',history:'history',manage:'grid',rules:'list',settings:'settings'}[view]||'folder';
   this.disposeHeroFlow?.();
-  $('#mono-hero').innerHTML=`<section class="hero"><div class="hero-icon" aria-hidden="true">${I(heroIcon)}</div><div class="hero-text"><h1>${L(...names)}</h1>${!['workspace','review','manage','rules','settings'].includes(view)?'<p class="hero-sub">'+L(...desc)+'</p>':''}</div>${!panel&&view!=='review'?`<button class="button hero-action ${pending?'primary':''}" data-pm="organize" ${this.api.busy()?'disabled':''}>${view==='history'?L('历史补分类','Classify history'):L(book?'应用书签规则':'整理待分类',book?'Apply bookmark rules':'Organize unclassified')}${pending?`<span class="badge mono">${pending}</span>`:''}${I('arrow')}</button>`:''}<div class="hero-stat"><strong class="hero-count">${count}</strong><span class="mono">${label}</span></div></section>`;
+  $('#mono-hero').innerHTML=`<section class="hero"><div class="hero-icon" aria-hidden="true">${I(heroIcon)}</div><div class="hero-text"><h1>${L(...names)}</h1>${!['workspace','manage','rules','settings'].includes(view)?'<p class="hero-sub">'+L(...desc)+'</p>':''}</div>${!panel?`<button class="button hero-action ${pending?'primary':''}" data-pm="organize" ${this.api.busy()?'disabled':''}>${view==='history'?L('历史补分类','Classify history'):L(book?'应用书签规则':'整理待分类',book?'Apply bookmark rules':'Organize unclassified')}${pending?`<span class="badge mono">${pending}</span>`:''}${I('arrow')}</button>`:''}<div class="hero-stat"><strong class="hero-count">${count}</strong><span class="mono">${label}</span></div></section>`;
   this.disposeHeroFlow=mountHeroFlow($('#mono-hero .hero-icon'),view);
+  if(!topicActions)$('#mono-hero [data-pm="organize"]')?.remove();
   const management=['manage','rules'].includes(view),classificationNav=$('#classification-navigation');
   classificationNav.hidden=!management;
   if(!management)classificationNav.replaceChildren();
@@ -230,22 +271,40 @@ export class OffsetUI{
   $('#mono-search-toggle>span').textContent=L('查找','Search');
   $('#search').placeholder=L(book?'搜索书签标题、域名或分类…':'搜索当前标签清单…',book?'Search bookmark titles, domains or categories…':'Search the current tab list…');
   $$('[data-mode]').forEach(b=>{b.classList.toggle('active',b.dataset.mode===this.mode);b.setAttribute('aria-pressed',b.dataset.mode===this.mode);b.querySelector('sup').textContent=b.dataset.mode==='tabs'?state.tabs.length:this.book?.rows.length??'—';b.querySelector('strong').textContent=b.dataset.mode==='tabs'?L('标签页','Tabs'):L('书签','Bookmarks');});
-  const source=book?this.book?.rows||[]:this.api.scoped(),key=book&&this.bookView==='folders'?'folder':'group';
-  const categories=[...new Set(source.map(r=>r[key]))];
-  if(!book||this.bookView==='smart'){const order=book?this.book?.groups||[]:this.api.names();categories.sort((a,b)=>order.indexOf(a)-order.indexOf(b));}
+  const source=book?this.book?.rows||[]:this.api.scoped(),key=book&&this.bookView==='folders'?'folder':this.siteGrouping?'site':'group';
+  const category=r=>key==='site'?siteKey(r):r[key];
+  const categories=[...new Set(source.map(category))];
+  if(this.siteGrouping)categories.sort((a,b)=>a.localeCompare(b));
+  else if(!book||this.bookView==='smart'){const order=book?this.book?.groups||[]:this.api.names();categories.sort((a,b)=>order.indexOf(a)-order.indexOf(b));}
   if(this.selected&&!rows.some(r=>r.id===this.selected.id))this.selected=rows[0]||null;
   const nav=(v,ic)=>`<button class="nav ${view===v?'active':''}" data-pm-view="${v}" ${view===v?'aria-current="page"':''}>${I(ic)}<span>${L(...titles[v])}</span>${['workspace','folders'].includes(v)?`<span class="number mono">${v==='workspace'?state.tabs.length:this.book?.rows.length??'—'}</span>`:''}</button>`;
-  const primary=book?nav('folders','folder')+nav('smart','spark'):nav('workspace','tabs')+nav('review','clock')+nav('history','history');
-  const q=$('#nav-filter')?.value||'';
-  $('#nav').innerHTML=`<div class="nav-group nav-primary"><p class="rail-label mono">${book?L('收藏','Collection'):L('浏览','Browsing')}</p>${primary}</div>${!panel&&view!=='review'?`<div class="nav-group nav-cats"><p class="rail-label mono">${key==='folder'?L('目录','Folders'):L('分类','Groups')}<span>${categories.length}</span></p>${categories.length>6?`<label class="nav-find">${I('search')}<input id="nav-filter" aria-label="${L('筛选分类','Filter groups')}" placeholder="${L('筛选分类','Filter groups')}" value="${E(q)}"></label>`:''}<div class="nav-scroll"><button class="nav cat ${!this.filters[this.mode]?'active':''}" data-pm-filter="">${I('all')}<span class="group-label">${L('全部','All')}</span><span class="number mono">${source.length}</span></button>${categories.map(name=>{const items=source.filter(r=>r[key]===name);return `<button class="nav cat ${this.filters[this.mode]===name?'active':''}" data-pm-filter="${E(name)}">${groupIcon(name,book?this.book?.icons?.[name]:state.config.workspaceIcons?.[name])}<span class="group-label">${E(key==='folder'?name.split(' / ').at(-1):workspaceLabel(name))}</span><span class="number mono">${items.length}</span></button>`;}).join('')}</div></div>`:''}<div class="nav-dock">${[['manage','grid'],['settings','settings']].map(([v,ic])=>`<button class="dock ${(v==='manage'?management:view===v)?'active':''}" data-pm-view="${v}" title="${v==='manage'?L('分类与规则','Categories & rules'):L(...titles[v])}" aria-label="${v==='manage'?L('分类与规则','Categories & rules'):L(...titles[v])}">${I(ic)}<span>${L(...{manage:['分类与规则','Categories & rules'],rules:['规则','Rules'],settings:['设置','Settings']}[v])}</span></button>`).join('')}</div>`;
-  if($('#nav-filter'))$('#nav-filter').oninput=e=>$$('[data-pm-filter]').forEach(b=>b.hidden=!!b.dataset.pmFilter&&!b.textContent.toLowerCase().includes(e.target.value.toLowerCase()));
-  $('#mono-panel').hidden=!panel;$('#recap').hidden=panel||book||view==='workspace';$('#review-dashboard').hidden=panel||book||view!=='review';
+  const primary=book?nav('folders','folder')+nav('smart','spark'):nav('workspace','tabs')+nav('history','history');
+  const navContext=this.mode+':'+view,sameNav=$('#nav').dataset.context===navContext;
+  const navScroll=sameNav?$('.nav-scroll')?.scrollTop||0:0;
+  const focusedCategory=sameNav?document.activeElement.closest('#nav [data-pm-filter]')?.dataset.pmFilter:undefined;
+  const q=sameNav?$('#nav-filter')?.value||'':'';
+  $('#nav').dataset.context=navContext;
+  $('#nav').innerHTML=`<div class="nav-group nav-primary"><p class="rail-label mono">${book?L('收藏','Collection'):L('浏览','Browsing')}</p>${primary}</div>${!panel?`<div class="nav-group nav-cats"><p class="rail-label mono">${key==='folder'?L('目录','Folders'):key==='site'?L('网站','Sites'):L('分类','Groups')}<span>${categories.length}</span></p>${categories.length>6?`<label class="nav-find">${I('search')}<input id="nav-filter" aria-label="${L('筛选分类','Filter groups')}" placeholder="${L('筛选分类','Filter groups')}" value="${E(q)}"></label>`:''}<div class="nav-scroll"><button class="nav cat ${!this.filters[this.mode]?'active':''}" data-pm-filter="">${I('all')}<span class="group-label">${L('全部','All')}</span><span class="number mono">${source.length}</span></button>${categories.map(name=>{const items=source.filter(r=>category(r)===name);return `<button class="nav cat ${this.filters[this.mode]===name?'active':''}" data-pm-filter="${E(name)}">${key==='site'?fav(items[0]):groupIcon(name,book?this.book?.icons?.[name]:state.config.workspaceIcons?.[name])}<span class="group-label">${E(key==='folder'?name.split(' / ').at(-1):workspaceLabel(name))}</span><span class="number mono">${items.length}</span></button>`;}).join('')}</div></div>`:''}<div class="nav-dock">${[['manage','grid'],['settings','settings']].map(([v,ic])=>`<button class="dock ${(v==='manage'?management:view===v)?'active':''}" data-pm-view="${v}" title="${v==='manage'?L('分类与规则','Categories & rules'):L(...titles[v])}" aria-label="${v==='manage'?L('分类与规则','Categories & rules'):L(...titles[v])}">${I(ic)}<span>${L(...{manage:['分类与规则','Categories & rules'],rules:['规则','Rules'],settings:['设置','Settings']}[v])}</span></button>`).join('')}</div>`;
+  const navFilter=$('#nav-filter');
+  if(navFilter){navFilter.oninput=()=>$$('#nav [data-pm-filter]').forEach(b=>b.hidden=!!b.dataset.pmFilter&&!b.textContent.toLowerCase().includes(navFilter.value.toLowerCase()));navFilter.oninput();}
+  if($('.nav-scroll'))$('.nav-scroll').scrollTop=navScroll;
+  if(focusedCategory!==undefined)$$('#nav [data-pm-filter]').find(b=>b.dataset.pmFilter===focusedCategory)?.focus({preventScroll:true});
+  $('#mono-panel').hidden=!panel;$('#recap').hidden=panel||book||view==='workspace';
   $('#ai-onboarding').hidden=$('#ai-onboarding').hidden||book||panel;
+  if(!topicActions)for(const id of ['ai-onboarding','ai-state','ai-recovery','organize-progress','history-progress','organize-history'])$('#'+id).hidden=true;
   for(const id of ['history-progress','organize-progress','ai-recovery'])if(book||panel)$('#'+id).hidden=true;
-  $('#mono-list').hidden=panel||(view==='review'&&!reviewSearch);
+  $('#mono-list').hidden=panel;
   if(panel&&book&&view!=='settings')this.renderBookPanel(view);
-  if(!panel&&(view!=='review'||reviewSearch))this.renderList(rows);
-  this.status(rows);this.railAccess();this.alignCategories();
+  if(!panel)this.renderList(rows);
+  this.status(rows);this.railAccess();this.alignCategories(navScroll);
+  this.previewBatch?.draw();
+  if(changingPage){
+   window.scrollTo(0,0);this.navigationAnimation?.cancel();this.navigationAnimation=null;
+   if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    const animation=$('#workspace').animate([{opacity:.65},{opacity:1}],{duration:160,easing:'ease-out'});this.navigationAnimation=animation;
+    animation.onfinish=()=>{if(this.navigationAnimation===animation)this.navigationAnimation=null;};
+   }
+  }
   if(preview){
    const source=book?this.book?.rows||[]:state.records||[],row=source.find(r=>r.id===preview.row.id&&r.url===preview.row.url);
    if(preview.mode===this.mode&&row)this.preview({...preview.row,title:row.title},true);
@@ -254,23 +313,30 @@ export class OffsetUI{
  }
  renderList(rows){
   const book=this.mode==='bookmarks',view=this.view,layout=this.layouts[this.mode];
+  if(this.siteGrouping)rows=siteSections(rows).flatMap(section=>section.rows);
   const total=rows.length,pageSize=100;
-  if(book){const key=JSON.stringify([view,this.filters.bookmarks,$('#search').value]);if(key!==this.bookPageKey){this.bookPage=0;this.bookPageKey=key;}this.bookPage=Math.min(this.bookPage||0,Math.max(0,Math.ceil(total/pageSize)-1));rows=rows.slice(this.bookPage*pageSize,(this.bookPage+1)*pageSize);}
+  if(book){const key=JSON.stringify([view,this.grouping.bookmarks,this.filters.bookmarks,$('#search').value]);if(key!==this.bookPageKey){this.bookPage=0;this.bookPageKey=key;}this.bookPage=Math.min(this.bookPage||0,Math.max(0,Math.ceil(total/pageSize)-1));rows=rows.slice(this.bookPage*pageSize,(this.bookPage+1)*pageSize);}
   const controls=`${icon('dense',L('紧凑列表','Compact list'),`data-pm-density="compact" aria-pressed="${layout==='list'&&this.density==='compact'}"`)}${icon('airy',L('舒适列表','Comfortable list'),`data-pm-density="comfortable" aria-pressed="${layout==='list'&&this.density==='comfortable'}"`)}<span class="vsep"></span>${icon('list',L('索引列表','List'),`data-pm-layout="list" aria-pressed="${layout==='list'}"`)}${icon('grid',L('预览画廊','Gallery'),`data-pm-layout="gallery" aria-pressed="${layout==='gallery'}"`)}`;
-  let html=`<div class="list-tools"><div class="scope"><strong>${E(this.filters[this.mode]||L(book?'全部书签':'全部标签',book?'All bookmarks':'All tabs'))}</strong><span class="mono">/ ${total}</span></div><div class="view-controls">${book?`<button class="tool" data-pm="book-ai" ${this.bookAIRunning?'disabled':''}>${L('AI 分类…','AI classify…')}</button>`:''}<button class="tool" data-pm="refresh">${L(book?'刷新书签':'刷新标签页',book?'Refresh bookmarks':'Refresh tabs')}</button>${!book&&view==='workspace'?`<button class="tool" data-pm="regroup">${L('重新分组…','Regroup…')}</button>`:''}${controls}</div></div>`;
+  const originalFolders=book&&view==='folders';
+  let html=`<div class="grouping-switch"><div role="group" aria-label="${L('整理方式','Organize by')}">${[['site','按网站','Website'],['topic','按主题','Topic']].map(([value,zh,en])=>`<button type="button" class="tool" data-pm-grouping="${value}" aria-pressed="${!originalFolders&&this.grouping[this.mode]===value}">${L(zh,en)}</button>`).join('')}</div><small>${originalFolders?L('当前显示原文件夹','Showing original folders'):this.siteGrouping?L('按网站聚合，不使用 AI','Grouped by website, without AI'):L('AI 优先合并到相关大类','AI favors broad, related topics')}</small></div><div class="list-tools"><div class="scope"><strong>${E(this.filters[this.mode]||L(book?'全部书签':'全部标签',book?'All bookmarks':'All tabs'))}</strong><span class="mono">/ ${total}</span></div><div class="view-controls">${book&&!this.siteGrouping?`<button class="tool" data-pm="book-ai" ${this.bookAIRunning?'disabled':''}>${L('AI 分类…','AI classify…')}</button>`:''}<button class="tool" data-pm="refresh">${L(book?'刷新书签':'刷新标签页',book?'Refresh bookmarks':'Refresh tabs')}</button>${!book&&view==='workspace'&&!this.siteGrouping?`<button class="tool" data-pm="regroup">${L('重新分组…','Regroup…')}</button>`:''}${controls}</div></div>`;
   if(book&&!this.book){html+=`<div class="empty"><p>${L('连接浏览器书签','Connect browser bookmarks')}</p><span>${L('仅在你授权后读取目录。智能分类独立保存，不移动原书签。','Read folders only after your permission. Classification never moves original bookmarks.')}</span><button class="button primary" data-pm="connect">${this.api.extension?L('授权并读取书签','Authorize bookmarks'):L('查看模拟书签','Show example bookmarks')}</button></div>`;}
   else if(!rows.length)html+=`<div class="empty"><p>${L('这里还没有页面','No pages here')}</p><span>${L('可以切换分类、日期或清除搜索条件。','Choose another group or date, or clear the search.')}</span></div>`;
-  else if(layout==='gallery')html+=`<div class="gallery">${rows.map(r=>`<article class="gallery-card" data-row="${E(r.id)}"><button type="button" class="gallery-open" data-pm-open="${E(r.id)}"><div class="gallery-art" data-preview-url="${E(r.url)}">${this.previewMarkup(r)}</div><div class="gallery-copy"><strong>${E(r.title)}</strong><span>${E(r.domain)} · ${E(workspaceLabel(r.group))}</span></div></button><div class="gallery-tools">${icon('more',L('页面操作','Page actions'),'data-pm-actions="'+E(r.id)+'" aria-haspopup="true" aria-expanded="false"')}</div></article>`).join('')}</div>`;
-  else html+=rows.map(r=>this.row(r,book,view)).join('');
+  else for(const section of this.siteGrouping?siteSections(rows):[{rows}]){
+   if(section.name)html+=`<h2 class="site-section">${E(section.name)}<span>${section.rows.length}</span></h2>`;
+   if(layout==='gallery')html+=`<div class="gallery">${section.rows.map(r=>`<article class="gallery-card" data-row="${E(r.id)}"><button type="button" class="gallery-open" data-pm-open="${E(r.id)}"><div class="gallery-art" data-preview-url="${E(r.url)}">${this.previewMarkup(r)}</div><div class="gallery-copy"><strong>${E(r.title)}</strong><span>${E(r.domain)} · ${E(this.siteGrouping?siteKey(r):workspaceLabel(r.group))}</span></div></button><div class="gallery-tools">${icon('more',L('页面操作','Page actions'),'data-pm-actions="'+E(r.id)+'" aria-haspopup="true" aria-expanded="false"')}</div></article>`).join('')}</div>`;
+   else html+=section.rows.map(r=>this.row(r,book,view)).join('');
+  }
   if(book&&total>pageSize)html+=`<nav class="bookmark-pager" aria-label="${L('书签分页','Bookmark pages')}"><button class="button" data-pm-page="-1" ${this.bookPage===0?'disabled':''}>${L('上一页','Previous')}</button><span class="mono">${this.bookPage*pageSize+1}–${Math.min(total,(this.bookPage+1)*pageSize)} / ${total}</span><button class="button" data-pm-page="1" ${(this.bookPage+1)*pageSize>=total?'disabled':''}>${L('下一页','Next')}</button><small>${L('搜索与整理覆盖全部匹配结果','Search and organize include all matching results')}</small></nav>`;
   $('#mono-list .index').innerHTML=html;
+  this.previewBatch?.mount(rows);
+  $('#mono-list .list-tools').insertAdjacentHTML('afterend','<div class="preview-notice" role="status" hidden><span></span><button type="button"></button></div>');this.updatePreviewNotice();
   $$('#mono-list [data-pm-open]').forEach(b=>b.onclick=()=>this.open(rows.find(r=>r.id===b.dataset.pmOpen)));
   $$('#mono-list [data-pm-actions]').forEach(b=>b.onclick=()=>this.actions(rows.find(r=>r.id===b.dataset.pmActions),b));
   $$('#mono-list [data-pm-preview]').forEach(b=>b.onclick=()=>this.preview(rows.find(r=>r.id===b.dataset.pmPreview),true));
   $$('#mono-list .item,#mono-list .gallery-card').forEach(row=>{const r=rows.find(r=>r.id===row.dataset.row);row.onclick=e=>{if(!e.target.closest('button,a,input,select'))this.open(r);};const enter=(keyboard=false)=>{if($('#mono-preview').open||(!keyboard&&this.keyboardNavigation))return;if(keyboard)this.keyboardNavigation=true;this.clearPreview();this.selected=r;row.classList.add('is-hovered');this.status(rows);if(this.previewEnabled&&(keyboard||matchMedia('(any-hover: hover)').matches)){this.previewAnchor=row;this.hoverTimer=setTimeout(()=>this.preview(r),480);}};row.previewEnter=enter;row.onmouseenter=()=>enter();row.onmouseleave=()=>{if(!$('#mono-preview').open&&!row.querySelector(':focus-visible'))this.clearPreview();};row.addEventListener('focusin',e=>{this.selected=r;this.status(rows);if(e.target.matches(':focus-visible'))enter(true);});row.addEventListener('focusout',e=>{if(!$('#mono-preview').open&&!row.contains(e.relatedTarget))this.clearPreview();});});
   this.hydrateGallery();
  }
- row(r,book,view){const name=r.title.includes(' · ')?r.title.split(' · ')[0]:r.domain.split('.')[0],title=r.title.includes(' · ')?r.title.split(' · ').slice(1).join(' · '):r.title;
+ row(r,book,view){const name=siteName(r),title=r.title.includes(' · ')?r.title.split(' · ').slice(1).join(' · '):r.title;
   const date=r.lastSeen||r.firstSeen,time=date?new Date(date).toLocaleDateString(getLanguage()==='en'?'en-US':'zh-CN',{month:'2-digit',day:'2-digit'}):'';
   return `<div class="item" data-row="${E(r.id)}"><button type="button" class="row-origin" data-pm-open="${E(r.id)}" aria-label="${E(r.title)}"><span class="row-origin-text">${fav(r)}<strong>${E(name)}</strong></span></button><button type="button" class="row-stripes" data-pm-open="${E(r.id)}" aria-label="${E(L('打开：','Open: ')+r.title)}">${Array.from({length:12},(_,n)=>`<i aria-hidden="true" style="--weight:${1/(n+2)};--delay:${180+n*12}ms"></i>`).join('')}</button><div class="row-details"><button type="button" class="item-main" data-pm-open="${E(r.id)}"><span class="item-title">${E(title)}${r.manualGroup?`<span class="manual-tag">${L('手动','Manual')}</span>`:''}</span><span class="item-meta">${E(book&&view==='folders'?r.folder:r.domain)}</span></button><span class="row-state mono">${E(time)}</span><span class="row-group">${E(workspaceLabel(r.group))}</span><span class="item-actions">${icon('more',L('页面操作','Page actions'),'data-pm-actions="'+E(r.id)+'" aria-haspopup="true" aria-expanded="false"')}</span></div></div>`;
  }
@@ -294,18 +360,26 @@ export class OffsetUI{
   if($('#mono-preview').open&&this.explicitPreview&&(!url||this.explicitPreview.row.url===url))this.preview(this.explicitPreview.row,true);
   else if(this.previewAnchor&&$('#inspector').classList.contains('is-visible')){const row=this.rows.find(r=>r.id===this.previewAnchor.dataset.row);if(row&&(!url||row.url===url))this.preview(row);}
  }
+ updatePreviewNotice(){
+  const notice=$('#mono-list .preview-notice');if(!notice)return;
+  const info=this.autoPreviewStatus,reason=!info?'':info.error?'status':!info.requested?'disabled':!info.authorized?'permission':!info.recording?'paused':'';
+  notice.hidden=!this.api.extension||!this.rows.length||!reason;if(notice.hidden)return;
+  const labels={disabled:[L('自动预览未开启','Automatic previews are off'),L('去开启','Enable')],permission:[L('自动预览缺少授权','Automatic previews need permission'),L('去授权','Authorize')],paused:[L('自动预览已暂停','Automatic previews are paused'),L('去设置','Settings')],status:[L('无法读取预览设置','Could not read preview settings'),L('重试','Retry')]};
+  notice.querySelector('span').textContent=labels[reason][0];const button=notice.querySelector('button');button.textContent=labels[reason][1];button.dataset.pm=reason==='status'?'preview-retry':'preview-settings';
+ }
  async syncAutoPreview(){
   if(!this.api.extension)return;const token=this.autoPreviewRequest=(this.autoPreviewRequest||0)+1;
   try{
    const info=await this.api.send({type:'preview:status'});if(token!==this.autoPreviewRequest)return;
-   const changed=this.autoPreview!==info.enabled;this.autoPreview=info.enabled;
+   const changed=this.autoPreview!==info.enabled;this.autoPreview=info.enabled;this.autoPreviewStatus=info;
    const button=$('#mono-auto-preview');if(button){button.setAttribute('aria-pressed',String(this.autoPreview));button.textContent=this.autoPreview?L('开启','On'):L('关闭','Off');}
    if(changed){this.hydrateGallery();if($('#mono-preview').open&&this.explicitPreview)this.preview(this.explicitPreview.row,true);}
-  }catch{}
+  }catch{if(token!==this.autoPreviewRequest)return;this.autoPreviewStatus={error:true};}
+  this.updatePreviewNotice();this.alignCategories();
  }
  async setAutoPreview(enabled){
   if(!this.api.extension){this.api.toast(L('请在 Chrome 插件中授权使用；示例页面不采集网页。','Authorize this feature in the Chrome extension. The demo does not capture pages.'));return false;}
-  try{if(enabled&&!await chrome.permissions.request({origins:['<all_urls>']}))return false;await this.api.send({type:'preview:auto',enabled});await this.syncAutoPreview();this.api.toast(enabled?L('自动预览已开启','Automatic previews enabled'):L('自动预览已关闭','Automatic previews disabled'));return true;}catch(e){this.api.toast(e.message);return false;}
+  try{if(enabled&&!await chrome.permissions.request({origins:['<all_urls>']})){this.api.toast(L('未获授权，自动预览仍未开启','Permission not granted. Automatic previews remain off.'));return false;}await this.api.send({type:'preview:auto',enabled});await this.syncAutoPreview();this.api.toast(enabled?L('自动预览已开启','Automatic previews enabled'):L('自动预览已关闭','Automatic previews disabled'));return true;}catch(e){this.api.toast(e.message);return false;}
  }
  async hydrateGallery(){
   clearTimeout(this.galleryStatusTimer);
@@ -362,7 +436,7 @@ export class OffsetUI{
   const row=anchor.getBoundingClientRect(),box=$('#mono-list').getBoundingClientRect();
   const top=Math.max(8,$('.app .topbar').getBoundingClientRect().bottom+8),bottom=innerHeight-38;
   if(row.bottom<top||row.top>bottom){this.clearPreview();return;}
-  // Keep the original under-list composition and difference blending.
+  // Keep the preview under the active row and preserve difference blending.
   // Rows traverse a stationary image within each group; the next group starts at its top again.
   const width=Math.min(480,Math.max(280,box.width*.47),innerWidth-32,box.width,Math.max(0,bottom-top-32)*640/420);
   if(width<140){this.clearPreview();return;}
@@ -420,18 +494,18 @@ export class OffsetUI{
  bookDialog(title,body,save){const d=$('#mono-book-dialog');d.innerHTML=`<form><div class="dialog-heading"><h2>${title}</h2><button type="button" aria-label="Close">×</button></div>${body}<div class="dialog-actions"><button class="primary">${L('保存','Save')}</button></div></form>`;d.querySelector('button[type=button]').onclick=()=>d.close();d.querySelector('form').onsubmit=async e=>{e.preventDefault();try{await save();d.close();}catch(error){this.api.toast(error.message);}};d.showModal();}
  async organize(){try{if(this.mode==='bookmarks'){if(!this.book)return this.connectBookmarks();await this.bookSend('classify',{ids:this.rows.map(r=>r.id)});this.api.toast(L('已应用书签规则；已有分类与人工调整保持不变。','Bookmark rules applied; existing and manual classifications preserved.'));}else if(this.view==='history')$('#organize-history').click();else await this.api.organize();}catch(e){this.api.toast(e.message);}}
  async prepareBookAI(){
-  if(this.bookAIRunning)return;
+  if(this.bookAIRunning||this.siteGrouping)return;
   if(!this.api.extension){this.api.toast(L('模拟预览不发送 AI 请求；加载扩展后可确认范围。','Demo does not send AI requests. Load the extension to confirm a scope.'));return;}
   if(!this.book)return this.connectBookmarks();
   try{
-   const prepared=await this.api.send({type:'bookAI:prepare',ids:this.rows.map(r=>r.id)});if(this.mode!=='bookmarks')return;
+   const prepared=await this.api.send({type:'bookAI:prepare',ids:this.rows.map(r=>r.id)});if(this.mode!=='bookmarks'||this.siteGrouping)return;
    this.bookDialog(L('确认书签 AI 分类','Confirm bookmark AI classification'),`<p>${E(this.filters.bookmarks||L('全部书签','All bookmarks'))}${$('#search').value?' · '+E($('#search').value):''}</p><p>${L('范围','Scope')} ${prepared.total} · ${L('保留已有/人工分类','Existing/manual protected')} ${prepared.protected} · ${L('本地规则','Local rules')} ${prepared.local} · AI ${prepared.ai}</p><p>${E(prepared.provider)} / ${E(prepared.model)}</p><p class="help">${L('仅发送待分类书签的标题、域名、分类名称与规则到上述供应商，可能产生 API 费用。不发送完整网址、原文件夹路径或网页正文。每批最多 200 条；取消保留已完成结果。','Send only unclassified bookmark titles, domains, category names and rules to this provider. API charges may apply. No full URLs, folder paths or page content. Up to 200 per batch; cancellation preserves completed work.')}</p><div class="preview-list">${prepared.preview.map(r=>`<div>${E(r.title)} · ${E(r.domain)}</div>`).join('')}</div><p class="help">${prepared.ai>50?L('仅展示前 50 条，确认范围包含全部待分类结果。','Preview shows 50; confirmation includes all candidates.'):''}${!prepared.hasKey?L('请先在设置中配置 AI Key。','Configure an AI key in Settings first.'):''}</p>`,async()=>{if(!prepared.hasKey||!prepared.ai)return;$('#mono-book-dialog').close();void this.runBookAI(prepared);});
    const button=$('#mono-book-dialog .primary');button.textContent=L('确认发送','Confirm and send');button.disabled=!prepared.hasKey||!prepared.ai;
   }catch(e){this.api.toast(e.message);}
  }
  cancelBookAI(){this.bookAICancelled=true;if(this.bookAIToken)this.api.send({type:'bookAI:cancel',token:this.bookAIToken}).catch(()=>{});}
  async runBookAI(prepared){
-  if(this.bookAIRunning)return;this.bookAIRunning=true;this.bookAICancelled=false;this.bookAIToken=crypto.randomUUID();
+  if(this.bookAIRunning||this.siteGrouping)return;this.bookAIRunning=true;this.bookAICancelled=false;this.bookAIToken=crypto.randomUUID();
   const show=text=>{this.bookAIStatus=text;$('#book-ai-progress span').textContent=text;$('#book-ai-progress').hidden=this.mode!=='bookmarks';};
   const cancel=$('#book-ai-progress button');cancel.hidden=false;cancel.textContent=L('取消','Cancel');
   show(L('正在处理书签…','Classifying bookmarks…'));

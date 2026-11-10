@@ -3,17 +3,16 @@ import {cleanupSnapshot} from './cleanup.js';
 import {THUMBNAIL_KEY} from './thumbnails.js';
 import {groupIcon,groupIconChoices,groupIconLabel} from './group-icons.js';
 import {t,getLanguage,setLanguage,LANGUAGE_KEY,staticTranslations,workspaceLabel,preferredLanguage,systemLanguage} from './i18n.js';
-import {recordsChanged} from './dashboard-sync.js';
-import {renderReview} from './review.js';
-import {preferenceText,parseRuleBackup,mergeRuleBackup,exportRuleBackup} from './rule-transfer.js?v=20260917-15';
-import {organizeOpenTabs} from './organize-workflow.js?v=20260917-15';
+import {recordsChanged,withTabTargets} from './dashboard-sync.js';
+import {preferenceText,parseRuleBackup,mergeRuleBackup,exportRuleBackup} from './rule-transfer.js';
+import {organizeOpenTabs} from './organize-workflow.js';
 import {organizeHistory} from './history-workflow.js';
-import {historyCandidates,classificationContext} from './core.js?v=20260917-15';
-import {removeReadingStatus,UNGROUPED,normalizeDomain,excludedUrl,dayKey,defaults,settingsSignature,assertSettingsCurrent,updateRules,orderedWorkspaces,reorderByKey,manageWorkspace,applyLocalRules} from './core.js?v=20260917-15';
-import {testConnection} from './ai.js?v=20260917-15';
-import {PROVIDERS,providerFor} from './providers.js?v=20260917-15';
-import {iconButton,fillWorkspaceSelect,selectedWorkspace,sortableHandle} from './controls.js?v=20260917-15';
-import {demoState} from './demo.js?v=20260917-15';
+import {historyCandidates,classificationContext} from './core.js';
+import {removeReadingStatus,UNGROUPED,normalizeDomain,excludedUrl,dayKey,defaults,settingsSignature,assertSettingsCurrent,updateRules,orderedWorkspaces,reorderByKey,manageWorkspace,applyLocalRules} from './core.js';
+import {testConnection} from './ai.js';
+import {PROVIDERS,providerFor} from './providers.js';
+import {iconButton,fillWorkspaceSelect,selectedWorkspace,sortableHandle} from './controls.js';
+import {demoState} from './demo.js';
 import {OffsetUI} from './offset-ui.js';
 let mono;
 const storagePanel=storageUI({send,reload:load,toast,clearPreviews:()=>{mono?.thumbnails.clear();mono?.clearPreview();}});
@@ -24,8 +23,8 @@ let state,view='workspace',searchOpen=false,suggestions=[],pending=[],busy=false
 let autoDirty=false,setupIntent=false;
 let historyJob=null,historyProgressDay='';
 const isSidePanel=isExtension&&new URLSearchParams(location.search).get("surface")==="sidepanel";
-let reviewDay=dayKey(),resumeDay=dayKey(new Date().setDate(new Date().getDate()-1));
-let calendarDay=dayKey(),reviewDateChosen=false,resumeDateChosen=false,settingsBase;
+let resumeDay=dayKey(new Date().setDate(new Date().getDate()-1));
+let calendarDay=dayKey(),resumeDateChosen=false,settingsBase;
 let demoPreference,importBackup=null,restoring=false;
 let demo=demoState();
 // Old preview caches may contain private development examples. Never load them.
@@ -48,31 +47,31 @@ async function send(message){
  if(message.type==='preference'){demoPreference=preferenceText(message.value);demo.config.savedPreference=message.save?demoPreference:'';demo.config.savePreference=!!message.save;}
  if(message.type==='importRules'){const result=mergeRuleBackup(demo.config.rules,message.backup);demo.config.rules=result.rules;localStorage.setItem('atlas-demo',JSON.stringify(demo));return {added:result.added,skipped:result.skipped};}
  if(message.type==='patch'&&typeof message.value.group==='string'&&message.value.group.trim()&&message.value.group.length<=40){Object.assign(demo.records.find(r=>r.id===message.id),{group:message.value.group.trim(),snapshotGroup:message.value.group.trim(),manualGroup:true,ruleMatched:false});}
- if(message.type==='settings'){assertSettingsCurrent(demo.config,message.expectedSettings);demo.config={...demo.config,...message.value,providerModels:{...demo.config.providerModels,[demo.config.provider||'deepseek']:demo.config.model,[message.value.provider||demo.config.provider||'deepseek']:message.value.model}};demo.records=demo.records.filter(r=>!excludedUrl(r.url,demo.config.excluded));demo.tabs=demo.tabs.filter(t=>!excludedUrl(t.url,demo.config.excluded));demo.visits=(demo.visits||[]).filter(t=>!excludedUrl(t.url,demo.config.excluded));Object.assign(demo,cleanupSnapshot(demo,demo.tabs));}
+ if(message.type==='settings'){assertSettingsCurrent(demo.config,message.expectedSettings);demo.config={...demo.config,...message.value,providerModels:{...demo.config.providerModels,[demo.config.provider||'deepseek']:demo.config.model,[message.value.provider||demo.config.provider||'deepseek']:message.value.model}};demo.records=demo.records.filter(r=>!excludedUrl(r.url,demo.config.excluded));demo.tabs=demo.tabs.filter(t=>!excludedUrl(t.url,demo.config.excluded));Object.assign(demo,cleanupSnapshot(demo,demo.tabs));}
  if(['rule','deleteRule','reorderRules'].includes(message.type)) demo.config.rules=updateRules(demo.config.rules,message);
  if(message.type==='applyRules'){const result=applyLocalRules(demo.records,demo.config.rules,message.ids);demo.records=result.records;localStorage.setItem('atlas-demo',JSON.stringify(demo));return {matched:result.matched};}
  if(message.type==='workspace')demo=manageWorkspace(demo,message);
  if(message.type==='reorderWorkspaces')demo.config.workspaceOrder=reorderByKey(orderedWorkspaces(demo.records,demo.config,true),message.source,message.target);
  if(message.type==='restoreDay')throw new Error(t('网页预览只展示示例；加载扩展后可恢复真实标签。'));
- if(message.type==='jump'||message.type==='jumpVisit')toast(t('这是标题示例，没有原始网址。安装扩展后可跳回真实标签页。'));
  if(message.type==='key')toast(t('示例模式不保存 API Key。请加载 Chrome 扩展后配置。'));
- if(message.type==='storageInfo')return {records:demo.records.length,visits:(demo.visits||[]).length,bytes:new TextEncoder().encode(JSON.stringify(demo)).length,lastCleanupAt:demo.lastCleanupAt,retentionDays:demo.config.retentionDays||30};
+ if(message.type==='storageInfo')return {records:demo.records.length,bytes:new TextEncoder().encode(JSON.stringify(demo)).length,lastCleanupAt:demo.lastCleanupAt,retentionDays:demo.config.retentionDays||30};
  if(message.type==='cleanupPreview'||message.type==='cleanup'){
   const patch=message.mode==='cache'?{[THUMBNAIL_KEY]:{}}:cleanupSnapshot(demo,demo.tabs,{mode:message.mode,days:message.days});
   const kept=new Set((patch.records||demo.records).map(r=>r.id)),removed=demo.records.filter(r=>!kept.has(r.id));
-  const result={records:removed.length,visits:(demo.visits||[]).length-(patch.visits||demo.visits||[]).length,thumbnails:Object.keys(demo[THUMBNAIL_KEY]||{}).length,from:removed.map(r=>r.day).sort()[0],to:removed.map(r=>r.day).sort().at(-1)};
+  const result={records:removed.length,thumbnails:Object.keys(demo[THUMBNAIL_KEY]||{}).length,from:removed.map(r=>r.day).sort()[0],to:removed.map(r=>r.day).sort().at(-1)};
   if(message.type==='cleanup'){Object.assign(demo,patch);localStorage.setItem('atlas-demo',JSON.stringify(demo));}
   return result;
  }
- if(message.type==='clear'){demo.records=[];demo.tabs=[];demo.visits=[];demo.config.recording=false;}
+ if(message.type==='clear'){demo.records=[];demo.tabs=[];demo.config.recording=false;}
  localStorage.setItem('atlas-demo',JSON.stringify(demo));return true;
 }
 function safe(fn){return async(...args)=>{try{await fn(...args);}catch(error){toast(error.message||t('操作失败，请重试。'));}};}
 async function load(){state=await send({type:'get'});state.config={...defaults(),...state.config};render();scheduleAuto();}
 function scoped(){
  const urls=new Set(state.tabs.map(t=>t.url));
- if(view==='workspace'&&state.storageWarning){const latest=new Map();for(const r of state.records)if(urls.has(r.url)&&(!latest.has(r.url)||latest.get(r.url).day<=r.day))latest.set(r.url,r);return [...latest.values()];}
- return state.records.filter(r=>view==='workspace'?r.day===state.today&&urls.has(r.url):r.day===$('#day').value).map(r=>view!=='workspace'?{...r,group:r.snapshotGroup||r.group}:r);
+ if(view==='workspace'&&state.storageWarning){const latest=new Map();for(const r of state.records)if(urls.has(r.url)&&(!latest.has(r.url)||latest.get(r.url).day<=r.day))latest.set(r.url,r);return withTabTargets([...latest.values()],state.tabs);}
+ const rows=state.records.filter(r=>view==='workspace'?r.day===state.today&&urls.has(r.url):r.day===$('#day').value).map(r=>view!=='workspace'?{...r,group:r.snapshotGroup||r.group}:r);
+ return view==='workspace'?withTabTargets(rows,state.tabs):rows;
 }
 function visible(){const query=$('#search').value.trim().toLowerCase();const rows=scoped().filter(r=>`${r.title} ${r.domain} ${workspaceLabel(r.group)}`.toLowerCase().includes(query));return mono?mono.filterRows(rows):rows;}
 function workspaceNames(){return orderedWorkspaces(state.records,state.config);}
@@ -81,9 +80,8 @@ function updateCalendar(){
  $('#day').max=today;
  if(today===calendarDay)return false;
  calendarDay=today;
- if(!reviewDateChosen)reviewDay=today;
  if(!resumeDateChosen)resumeDay=dayKey(new Date().setDate(new Date().getDate()-1));
- if(view!=='workspace')$('#day').value=view==='review'?reviewDay:resumeDay;
+ if(view!=='workspace')$('#day').value=resumeDay;
  return true;
 }
 function render(){
@@ -92,12 +90,9 @@ function render(){
  const records=scoped(),rows=visible(),searching=!!$('#search').value.trim();
  const groups=orderedWorkspaces([...state.records,...records],state.config,true).filter(g=>records.some(r=>r.group===g));
  $('#demo-banner').hidden=isExtension;
- $('#recap').classList.toggle('is-review',view==='review');
- $('#review-dashboard').hidden=view!=='review';
- if(view==='review')renderReview($('#review-dashboard'),state,$('#day').value,rows,$('#search').value.trim(),safe(v=>send({type:'jumpVisit',visit:v.visit,day:v.day,url:v.url})));
- $('#page-title').textContent=view==='history'?t('继续浏览'):view==='review'?t('每日回顾'):t('工作区');
+ $('#page-title').textContent=view==='history'?t('继续浏览'):t('工作区');
  $('#quicklinks').classList.toggle('active',view==='workspace');$('#quicklinks').setAttribute('aria-pressed',view==='workspace');
- for(const [id,name] of [['daily-review','review'],['continue-browsing','history']]){const button=$('#'+id);button.classList.toggle('active',view===name);button.setAttribute('aria-pressed',view===name);}
+ for(const [id,name] of [['continue-browsing','history']]){const button=$('#'+id);button.classList.toggle('active',view===name);button.setAttribute('aria-pressed',view===name);}
  $('#workspace-tools').hidden=view!=='workspace';
  $('#ai-state').hidden=!isExtension||(!state.hasKey&&!busy);
  $('#ai-onboarding').hidden=view!=='workspace'||!isExtension||state.hasKey;
@@ -107,8 +102,8 @@ function render(){
  $('#summary').textContent=t`${records.length} 个标签 · ${groups.length} 个工作区`;
  $('#ai-state').textContent=busy?t('✧ 正在归位…'):autoError?t('自动分类未完成'):!isExtension?'':!state.config.recording?t('记录已暂停'):!state.hasKey?t('AI 未配置'):t('自动整理已开启');
  $('#ai-state').title=autoError || t('新增标签先匹配规则；配置 AI 后，工作区可见时处理需要分类的页面。');
- $('#day').hidden=view==='workspace';$('#recap').hidden=view==='workspace';$('#restore-day').hidden=view!=='history';$('#review-metrics').hidden=view!=='review';
- $('#recap-title').textContent=view==='review'?t('每日回顾'):$('#day').value===dayKey(new Date().setDate(new Date().getDate()-1))?t('昨天留下的页面'):t('那天留下的页面');
+ $('#day').hidden=view==='workspace';$('#recap').hidden=view==='workspace';$('#restore-day').hidden=view!=='history';
+ $('#recap-title').textContent=$('#day').value===dayKey(new Date().setDate(new Date().getDate()-1))?t('昨天留下的页面'):t('那天留下的页面');
  $('#restore-day').disabled=restoring||!rows.length;
  $('#restore-day').textContent=restoring?t('正在恢复…'):t`重新打开这些标签（${rows.length}）`;
  const historyIds=new Set(rows.map(r=>r.id));
@@ -117,14 +112,8 @@ function render(){
  $('#organize-history').textContent=t`补分类（${historyCount}）`;
  $('#history-progress').hidden=view!=='history'||resumeDay!==historyProgressDay||!$('#history-progress').textContent;
  $('#recap-summary').textContent=records.length?t`${$('#day').value} · ${records.length} 个页面 · 保存当天收集的页面及最后分组，包含已关闭标签；保留最近 30 天 / 最多 5,000 条。`:t('这一天没有留下记录。插件只能找回开始记录之后、尚未过期的页面。');
- if(view==='review'){
-  const switches=rows.reduce((sum,r)=>sum+(r.activations||0),0),sites=new Set(rows.map(r=>r.domain)).size;
-  const rowUrls=new Set(rows.map(r=>r.url)),visits=(state.visits||[]).filter(v=>v.day===$('#day').value&&(!searching||rowUrls.has(v.url)));
-  $('#recap-summary').textContent=searching?t`${$('#day').value} · 匹配 ${rows.length} / ${records.length} 个页面 · 下方统计仅包含搜索结果。切换次数不代表分心或已读。`:t('时间分布、标签切换与每一段停留。选择时段，回看浏览过程。');
-  $('#review-metrics').replaceChildren(...[[rows.length,searching?t('匹配页面'):t('记录页面')],[sites,t('网站')],[visits.length||switches,visits.length?t('已采集浏览片段'):t('记录到的标签切换')]].map(([value,label])=>{const item=el('div');item.append(el('strong','',String(value)),el('span','',label));return item;}));
- }
- $('#search').placeholder=view==='review'?t('搜索所选日期的标题、域名或分组…'):t('搜索当前清单的标题、域名或分组…');
- $('#view-note').textContent=view==='review'?t('搜索所选日期 · 包含已关闭页面'):view==='workspace'?t('当前打开 · 点击回到标签页'):isExtension?t('包含已关闭页面 · 点击可重新打开'):t('示例标题 · 无真实阅读记录');
+ $('#search').placeholder=t('搜索当前清单的标题、域名或分组…');
+ $('#view-note').textContent=view==='workspace'?t('当前打开 · 点击回到标签页'):isExtension?t('包含已关闭页面 · 点击可重新打开'):t('示例标题 · 无真实阅读记录');
 
  $('#reorganize').hidden=view!=='workspace';
  $('#rule-count').textContent=suggestions.length?t` · ${suggestions.length} 条待确认`:'';
@@ -204,7 +193,8 @@ function renderWorkspaces(){
  }
  if(!list.children.length)list.append(el('p','help',t('还没有分类，可在下方新建。')));
 }
-$('#workspaces-button').onclick=safe(async()=>{const source=mono.mode,navigation=mono.navigationId;await load();if(source!==mono.mode||navigation!==mono.navigationId)return;$('#workspace-create').reset();renderWorkspaces();mono.openPanel('workspaces-dialog','manage');});
+function showWorkspaces(){$('#workspace-create').reset();renderWorkspaces();mono.openPanel('workspaces-dialog','manage');}
+$('#workspaces-button').onclick=safe(async()=>{const source=mono.mode,navigation=mono.navigationId;await load();if(source!==mono.mode||navigation!==mono.navigationId)return;showWorkspaces();});
 $('#workspace-create').onsubmit=safe(async event=>{
  event.preventDefault();await send({type:'workspace',action:'create',name:$('#workspace-name').value,expectedRevision:state.config.workspaceRevision||0});
  await load();$('#workspace-create').reset();renderWorkspaces();toast(t('分类已创建。'));
@@ -247,7 +237,7 @@ function keyHelp(){
  const id=$('#ai-provider').value,info=providerFor(id);
  const hasKey=state.keyProviders?.includes(id) || (id===state.config.provider&&state.hasKey);
  $('#api-key-label').textContent=`${t(info.name)} API Key`;
- $('#key-help').textContent=hasKey?t('Key 已保存在本机，留空保留。'):t('尚未配置 Key。');
+ $('#api-key').placeholder=hasKey?t('已保存，留空保留。'):'API Key';
  $('#provider-endpoint').textContent=t`连接到 ${new URL(info.url).hostname}`;
 }
 // Choices are local presets/saved models, not an account availability claim.
@@ -273,7 +263,7 @@ function modelChoices(){
 function resetConnection(){
  connectionController?.abort();connectionController=null;
  $('#test-connection').disabled=false;$('#test-connection').textContent=t('测试连接');
- $('#connection-result').textContent=isExtension?t('测试仅发送固定测试文字，不含标签信息；可能产生少量 API 费用。'):t('示例预览不保存 Key、不发送请求；请在 Chrome 扩展中测试真实连接。');
+ $('#connection-result').textContent='';
  $('#connection-result').removeAttribute('data-state');
 }
 function showSettings(startOrganizing=false){
@@ -283,14 +273,14 @@ function showSettings(startOrganizing=false){
  settingsModels={...state.config.providerModels,[state.config.provider]:state.config.model};
  $('#ai-provider').replaceChildren(...PROVIDERS.map(p=>new Option(t(p.name),p.id)));$('#ai-provider').value=state.config.provider;
  $('#api-key').value='';keyHelp();resetConnection();
- $('#model').value=state.config.model;modelChoices();$('#recording').checked=state.config.recording;$('#idle-seconds').value=String(state.config.idleSeconds||300);$('#excluded').value=state.config.excluded.join('\n');mono.openPanel('settings-dialog','settings');void storagePanel.refresh(state.config).catch(e=>toast(e.message));
+ $('#model').value=state.config.model;modelChoices();$('#recording').checked=state.config.recording;$('#excluded').value=state.config.excluded.join('\n');mono.openPanel('settings-dialog','settings');void storagePanel.refresh(state.config).catch(e=>toast(e.message));
 }
 $('#ai-provider').onchange=()=>{resetConnection();$('#api-key').value='';$('#model').value=settingsModels[$('#ai-provider').value]||providerFor($('#ai-provider').value).model;modelChoices();keyHelp();};
 $('#model').oninput=()=>{settingsModels[$('#ai-provider').value]=$('#model').value;resetConnection();};
 $('#api-key').oninput=resetConnection;
 $('#settings-dialog').addEventListener('close',()=>{resetConnection();$('#api-key').value='';});
 $('#test-connection').onclick=safe(async()=>{
- if(!isExtension){resetConnection();return;}
+ if(!isExtension){resetConnection();$('#connection-result').textContent=t('示例预览不保存 Key、不发送请求；请在 Chrome 扩展中测试真实连接。');return;}
  resetConnection();const controller=new AbortController();connectionController=controller;
  const timeout=setTimeout(()=>controller.abort(new DOMException('Timeout','TimeoutError')),30000);
  $('#test-connection').disabled=true;$('#test-connection').textContent=t('正在测试…');$('#connection-result').textContent=t('正在检查 Key、模型与 JSON 响应…');
@@ -310,9 +300,9 @@ window.addEventListener('atlas-color-mode-change',syncColorMode);
 $('#color-mode').onchange=()=>{
  if(!window.atlasColorMode.set($('#color-mode').value))toast(t('颜色模式已切换，但浏览器无法保存此偏好。'));
 };
-function switchView(next){view=next;$('#search').value='';if(next!=='workspace')$('#day').value=next==='review'?reviewDay:resumeDay;render();scheduleAuto();}
+function switchView(next){view=next;$('#search').value='';if(next!=='workspace')$('#day').value=resumeDay;render();scheduleAuto();}
 $('#quicklinks').onclick=safe(async()=>{await load();switchView('workspace');});
-$('#settings-shortcut').onclick=safe(async()=>{await load();showSettings();});
+$('#settings-shortcut').onclick=safe(async()=>{const source=mono.mode,navigation=mono.navigationId;await load();if(source!==mono.mode||navigation!==mono.navigationId)return;showSettings();});
 $('#configure-ai').onclick=()=>showSettings(true);
 $('#ai-recovery').onclick=()=>showSettings(true);
 $('#onboarding-rules').onclick=()=>$('#rules-button').click();
@@ -324,14 +314,13 @@ $('#brand-home').onclick=safe(async()=>{
  else {await load();switchView('workspace');}
 });
 $('#search-toggle').onclick=()=>{searchOpen=!searchOpen;if(!searchOpen)$('#search').value='';render();if(searchOpen)$('#search').focus();};
-$('#daily-review').onclick=safe(async()=>{await load();switchView('review');});
 $('#continue-browsing').onclick=safe(async()=>{await load();switchView('history');});
 $('#restore-day').onclick=safe(async()=>{
  if(restoring)return;restoring=true;const rows=visible(),day=$('#day').value;render();
  try{const result=await send({type:'restoreDay',day,ids:rows.map(r=>r.id)});await load();toast(t`已恢复 ${result.opened} 个标签，跳过 ${result.existing} 个已打开标签${result.failed?t`，${result.failed} 个失败，可重试`:''}。`);}finally{restoring=false;render();}
 });
 $('#organize-history').onclick=safe(async()=>{
- if(busy||view!=='history')return;
+ if(busy||view!=='history'||mono?.siteGrouping)return;
  if(!isExtension){toast(t('示例预览不调用 AI；加载扩展后可补分类历史页面。'));return;}
  await load();
  if(!state.config.recording){toast(t('记录已暂停，请先开启记录再补分类。'));return;}
@@ -351,7 +340,7 @@ $('#history-confirm').onclick=safe(async()=>{
  const progress=$('#history-progress');progress.textContent=t('正在补分类历史页面…');render();
  const run=async()=>{
   const result=await organizeHistory({...job,send,
-   shouldContinue:()=>document.visibilityState==='visible'&&view==='history'&&mono?.mode==='tabs'&&!mono?.panel&&resumeDay===job.day,
+   shouldContinue:()=>document.visibilityState==='visible'&&view==='history'&&mono?.mode==='tabs'&&!mono?.panel&&!mono?.siteGrouping&&resumeDay===job.day,
    onProgress:r=>{progress.textContent=t`全部 ${r.total} 页 · 规则归类 ${r.local} 页（免费） · AI 已检查 ${r.ai} 页 · 剩余 ${r.remaining} 页`;}
   });
   for(const rule of result.suggestions)if(!suggestions.some(r=>r.keyword===rule.keyword))suggestions.push(rule);
@@ -364,10 +353,11 @@ $('#history-confirm').onclick=safe(async()=>{
  }catch(error){progress.textContent=t`${error.message} · 已完成的结果保留，可再次点击“补分类”重试。`;}
  finally{busy=false;historyJob=null;autoDirty=false;await load();}
 });
-$('#day').value=dayKey();$('#day').max=dayKey();$('#day').onchange=()=>{if(!$('#day').value)return;if(view==='review'){reviewDay=$('#day').value;reviewDateChosen=true;}else{resumeDay=$('#day').value;resumeDateChosen=true;}render();};
+$('#day').value=dayKey();$('#day').max=dayKey();$('#day').onchange=()=>{if(!$('#day').value)return;resumeDay=$('#day').value;resumeDateChosen=true;render();};
 $('#search').oninput=render;
 $('#refresh').onclick=safe(async()=>{retryAfter=0;autoError='';await load();toast(t('已同步当前标签清单。'));});
-$('#rules-button').onclick=safe(async()=>{const source=mono.mode,navigation=mono.navigationId;await load();if(source!==mono.mode||navigation!==mono.navigationId)return;resetRuleForm();renderRules();$('#ai-preference').value=state.preference||'';$('#save-preference').checked=!!state.config.savePreference;$('#export-preference').checked=false;mono.openPanel('rules-dialog','rules');});
+function showRules(){resetRuleForm();renderRules();$('#ai-preference').value=state.preference||'';$('#save-preference').checked=!!state.config.savePreference;$('#export-preference').checked=false;mono.openPanel('rules-dialog','rules');}
+$('#rules-button').onclick=safe(async()=>{const source=mono.mode,navigation=mono.navigationId;await load();if(source!==mono.mode||navigation!==mono.navigationId)return;showRules();});
 for(const button of document.querySelectorAll('[data-close]'))button.onclick=()=>document.getElementById(button.dataset.close).close();
 $('#settings-form').onsubmit=safe(async event=>{
  event.preventDefault();
@@ -377,7 +367,7 @@ $('#settings-form').onsubmit=safe(async event=>{
  const submission={type:'settings',expectedSettings:settingsBase,apiKey:$('#api-key').value,value:{
   provider:$('#ai-provider').value,
   excluded:$('#excluded').value.split('\n').filter(s=>s.trim()).map(normalizeDomain),
-  retentionDays:storagePanel.days,idleSeconds:Number($('#idle-seconds').value),
+  retentionDays:storagePanel.days,
   recording:$('#recording').checked,model:$('#model').value
  }};
  if(!await storagePanel.confirmRetention(submission.value.retentionDays,state.config.retentionDays||30))return;
@@ -516,14 +506,14 @@ window.addEventListener('storage',event=>{if(event.storageArea===localStorage&&(
 updateLanguageButtons();
 mono=new OffsetUI({
  extension:isExtension,state:()=>state,view:()=>view,rows:visible,scoped,names:workspaceNames,busy:()=>busy,
- send,toast,render,edit:showTab,switchView,
+ send,toast,render,edit:showTab,switchView,groupingChanged:scheduleAuto,
+ showManagement:section=>section==='manage'?showWorkspaces():showRules(),
  home:()=>$('#brand-home').click(),
  organize:()=>runAI(false,false,visible().map(r=>r.id)),
  refresh:async()=>{retryAfter=0;autoError='';await load();},
- close:safe(async item=>{if(!item)return;if(!isExtension){demo.tabs=demo.tabs.filter(tab=>tab.url!==item.url);localStorage.setItem('atlas-demo',JSON.stringify(demo));}else await send({type:'closeTab',id:item.id});await load();})
+ close:safe(async item=>{if(!item)return;if(!isExtension){demo.tabs=demo.tabs.filter(tab=>tab.id!==item.tabId);localStorage.setItem('atlas-demo',JSON.stringify(demo));}else await send({type:'closeTab',id:item.id,tabId:item.tabId});await load();})
 });
 await safe(load)();
 if(location.hash==='#settings'&&state)showSettings();
-if(location.hash==='#review'&&state)switchView('review');
 
-setInterval(()=>{if(document.visibilityState==='visible'&&!document.querySelector('dialog[open]')){const changed=updateCalendar();if(changed||isExtension&&view==='review')safe(load)();}},60000);
+setInterval(()=>{if(document.visibilityState==='visible'&&!document.querySelector('dialog[open]')){const changed=updateCalendar();if(changed)safe(load)();}},60000);

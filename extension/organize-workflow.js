@@ -1,4 +1,4 @@
-import {UNGROUPED,autoCandidates,orderedWorkspaces,excludedUrl,classificationContext} from './core.js?v=20260917-15';
+import {UNGROUPED,autoCandidates,orderedWorkspaces,excludedUrl,classificationContext} from './core.js';
 import {dispatchClassification} from './classification-request.js';
 const openRecords=state=>state.records.filter(r=>r.day===state.today&&state.tabs.some(t=>t.url===r.url)&&!excludedUrl(r.url,state.config.excluded));
 // One lock wraps the whole operation in the caller. Refresh before each batch,
@@ -38,6 +38,7 @@ export async function organizeOpenTabs({send,request=null,onProgress=()=>{},shou
     if(response.reason)return {...result,reason:response.reason};
     const plan=response.plan;
     const fresh=await send({type:'get'});
+    if(!shouldContinue(fresh))return {...result,reason:'stopped'};
     if(!fresh.config.recording||classificationContext(fresh.config,fresh.preference||'')!==expectedContext)return {...result,reason:'changed'};
     const assignments=plan.assignments.filter(a=>fresh.tabs.some(t=>t.url===batch.find(r=>r.id===a.id)?.url)).map(a=>{const before=batch.find(r=>r.id===a.id);return {...a,baseTitle:before.title,baseGroup:before.group,baseManual:!!before.manualGroup};});
     const committed=await send({type:'assign',assignments,workspaceRevision:state.config.workspaceRevision||0,expectedContext});

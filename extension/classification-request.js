@@ -1,4 +1,4 @@
-import {classificationContext} from './core.js?v=20260917-15';
+import {classificationContext} from './core.js';
 
 // Ignore collection bookkeeping, but invalidate changes to any data used by AI.
 export const requestRecordsSignature=records=>JSON.stringify(records.map(r=>[

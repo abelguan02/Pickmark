@@ -1,63 +1,37 @@
+// Current production UI, synthetic demo data, isolated browser only.
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({channel:'chrome',headless:true});
+const base=process.env.PREVIEW_URL||'http://127.0.0.1:4173';
 try{
- const context=await browser.newContext({locale:'zh-CN',viewport:{width:1400,height:1000}}),page=await context.newPage(),errors=[];
- page.on('pageerror',e=>errors.push(e.message));
- const url=`${process.env.PREVIEW_URL||'http://127.0.0.1:4173'}/dashboard.html`;
- await page.goto(url);await page.locator('.tab-row').first().waitFor();
- const title=await page.locator('.tab-text').first().textContent(),group=await page.locator('.card-heading h2').first().textContent();
- await page.locator('#more-menu').evaluate(e=>e.open=true);await page.locator('#language-en').click();
- assert.equal(await page.locator('html').getAttribute('lang'),'en-US');
- assert.equal(await page.locator('#quicklinks').textContent(),'Workspaces');
- assert.equal(await page.locator('.tab-text').first().textContent(),title);
- assert.equal(await page.locator('.card-heading h2').first().textContent(),group);
- await page.locator('.tab-row').first().hover();await page.locator('.tab-more').first().click();
- assert.equal(await page.locator('#tab-dialog label').count(),1);
- assert.equal(await page.locator('[id=tab-status],[id=workspace-filter]').count(),0);
- await page.locator('#tab-form .primary').click();
- await page.locator('#more-menu summary').click();await page.locator('#settings-shortcut').click();
- assert.equal(await page.locator('#save-settings').textContent(),'Save settings');
- assert.equal(await page.locator('#ai-provider option[value=qwen]').textContent(),'Qwen · Bailian (Beijing)');
- // All static settings copy, including placeholders and accessibility labels, is English.
- assert.equal(await page.locator('#settings-dialog').evaluate(el=>/[\u3400-\u9fff]/.test(el.textContent)),false);
- await page.locator('[data-close="settings-dialog"]').click();
- await page.locator('#more-menu summary').click();await page.locator('#rules-button').click();
- assert.equal(await page.locator('#rule-save').textContent(),'Save rule');
- await page.locator('[data-close="rules-dialog"]').click();
- await page.locator('#daily-review').click();
- assert.ok((await page.locator('#review-dashboard').textContent()).includes('Time distribution'));
- await page.getByRole('button',{name:'Details',exact:true}).click();
- await page.locator('.rv-stop-button').first().click();
- assert.ok((await page.locator('.rv-page').first().textContent()).includes('min'));
- for(const width of [390,320]){
-  await page.setViewportSize({width,height:1000});
-  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`English review overflow at ${width}`);
+ const context=await browser.newContext({locale:'zh-CN',timezoneId:'America/New_York',viewport:{width:1400,height:1000}}),errors=[],network=[];
+ await context.addInitScript(()=>localStorage.setItem('pickmark-guide-v1','seen'));
+ await context.route('**/*',route=>route.request().url().startsWith(base+'/')?route.continue():(network.push(route.request().url()),route.abort()));
+ const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'/dashboard.html#review');await page.locator('.item').first().waitFor();
+ assert.equal(await page.locator('body').getAttribute('data-mono-view'),'workspace','Retired hash opens the workspace');
+ assert.equal(await page.locator('#daily-review,#review-dashboard,#review-metrics,#idle-seconds').count(),0);
+ assert.equal(await page.locator('.nav-primary [data-pm-view]').count(),2);
+ const title=await page.locator('.item-title').first().textContent();
+ await page.locator('#language-en').evaluate(e=>e.click());
+ assert.equal(await page.locator('html').getAttribute('lang'),'en-US');assert.equal(await page.locator('.item-title').first().textContent(),title);
+ await page.locator('#settings').click();assert.equal(await page.locator('#save-settings').textContent(),'Save settings');
+ const untranslated=await page.locator('#settings-dialog').evaluate(el=>{const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),result=[];while(walker.nextNode())if(!walker.currentNode.parentElement.closest('#language-zh')&&/[\u3400-\u9fff]/.test(walker.currentNode.textContent))result.push(walker.currentNode.textContent.trim());return result;});
+ assert.deepEqual(untranslated,[],'Static settings are fully translated');
+ await page.locator('#model').evaluate(el=>{for(let node=el.parentElement;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;});
+ await page.locator('#model-choice').selectOption('');
+ await page.locator('#model').fill('unsaved-model');
+ const other=await context.newPage();other.on('pageerror',e=>errors.push(e.message));await other.goto(base+'/dashboard.html');await other.locator('.item').first().waitFor();
+ await other.locator('#language-zh').evaluate(e=>e.click());await page.waitForFunction(()=>document.documentElement.lang==='zh-CN');
+ assert.equal(await page.locator('#model').inputValue(),'unsaved-model');assert.equal(await page.locator('#save-settings').textContent(),'保存设置');
+ assert.equal(await page.locator('label:has(#recording)').count(),1);
+ for(const language of ['zh','en'])for(const theme of ['light','dark'])for(const width of [1400,390,320]){
+  await page.locator('#language-'+language).evaluate(e=>e.click());await page.evaluate(theme=>atlasColorMode.set(theme),theme);await page.setViewportSize({width,height:1000});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`${language}/${theme}/${width}`);
  }
- await page.locator('#more-menu').evaluate(e=>e.open=true);await page.locator('[data-theme-choice][aria-pressed=false]').click();
- assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- await page.screenshot({path:'docs/review-english-mobile.png',fullPage:true});
- await page.locator('#quicklinks').click();
- assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
- await page.locator('#more-menu summary').click();assert.equal(await page.locator('#language-en').isVisible(),true);await page.locator('#more-menu summary').click();
- await page.reload();await page.locator('.tab-row').first().waitFor();
- assert.equal(await page.locator('#quicklinks').textContent(),'Workspaces');
- const other=await context.newPage();await other.goto(url);await other.locator('.tab-row').first().waitFor();
- assert.equal(await other.locator('#quicklinks').textContent(),'Workspaces');
- // Remote language changes relabel an open settings dialog without clearing edits.
- await other.locator('#more-menu summary').click();await other.locator('#settings-shortcut').click();
- await other.locator('#model').fill('unsaved-model');
- await page.locator('#more-menu').evaluate(e=>e.open=true);await page.locator('#language-zh').click();
- await other.waitForFunction(()=>document.documentElement.lang==='zh-CN');
- assert.equal(await other.locator('#quicklinks').textContent(),'工作区');
- assert.equal(await other.locator('#model').inputValue(),'unsaved-model');
- assert.equal(await other.locator('#save-settings').textContent(),'保存设置');
- await other.locator('[data-close="settings-dialog"]').click();
- // The system workspace is translated, but its stored name is stable.
- await page.evaluate(()=>{const state=JSON.parse(localStorage.getItem('atlas-demo'));state.records[0].group='待整理';localStorage.setItem('atlas-demo',JSON.stringify(state));});
- await page.reload();await page.locator('.tab-row').first().waitFor();await page.locator('#more-menu').evaluate(e=>e.open=true);await page.locator('#language-en').click();
- assert.ok((await page.locator('#mono-list').textContent()).includes('Unsorted'));
- assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('atlas-demo')).records[0].group),'待整理');
- assert.deepEqual(errors,[]);
- console.log('Language passed: full settings, review, unchanged user data, reload, multiple panels, English mobile and both themes.');
+ await page.setViewportSize({width:1400,height:1000});await page.locator('[data-mode=tabs]').click();
+ await page.locator('[data-pm-view=history]').click();assert.equal(await page.locator('#day').isVisible(),true);assert.ok(await page.locator('#day').inputValue());assert.equal(await page.locator('#restore-day').isVisible(),true);
+ await page.locator('[data-pm-view=workspace]').click();await page.screenshot({path:'/tmp/pickmark-021-workspace.png'});
+ assert.deepEqual(errors,[]);assert.deepEqual(network,[]);
+ console.log('PASS retired review hash fallback and absent panel/timing controls, page lists and resume date, English/Chinese settings, live cross-window language with unsaved edits, light/dark and widths 320–1400.');
 }finally{await browser.close();}

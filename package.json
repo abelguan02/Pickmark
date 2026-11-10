@@ -1,6 +1,6 @@
 {
   "name": "tabtrail",
-  "version": "0.1.9",
+  "version": "0.1.22",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "package": "python3 scripts/package.py",
     "preview": "python3 -m http.server 4173 --directory extension"
   },
-  "description": "Chrome 标签页工作区、本地每日回顾与可选 AI 分类",
+  "description": "Chrome 标签页与书签整理、每日页面清单与可选 AI 分类",
   "license": "MIT",
   "engines": {
     "node": ">=20"

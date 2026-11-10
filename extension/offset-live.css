@@ -1,4 +1,11 @@
 /* Production adapters. OFFSET tokens and row geometry remain in offset-theme.css. */
+.grouping-switch{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 14px}
+.grouping-switch>div{display:flex;gap:4px}
+html body #mono-list .grouping-switch .tool{width:auto;min-height:30px;padding:0 12px;white-space:nowrap;border:1px solid var(--line);color:var(--ink)}
+html body #mono-list .grouping-switch .tool[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.grouping-switch small{font-size:11px;color:var(--muted)}
+.site-section{display:flex;gap:10px;align-items:baseline;font-size:12px;font-weight:600;margin:20px 0 0;padding:10px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.site-section span{font-size:10px;font-weight:400;color:var(--muted)}
 html body #mono-hero .hero-icon svg{display:block;width:46px;height:46px;stroke-width:1.15}
 html body #mono-hero .hero-icon .hero-flow{display:block;width:var(--dmh,46px);height:var(--dmh,46px);transform:scale(1.24);pointer-events:none}
 html body #mono-hero .hero-stat .hero-count{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:42px;letter-spacing:-2px;line-height:1;font-weight:400}
@@ -142,6 +149,9 @@ html body .bookmark-pager{display:flex;align-items:center;justify-content:space-
 html body .bookmark-pager small{flex-basis:100%;color:var(--muted)}
 html body #mono-list .list-tools{flex-wrap:wrap;row-gap:10px}
 html body #mono-list .view-controls{flex-wrap:wrap}
+html body #mono-list .preview-notice{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px;padding:10px 0;color:var(--muted);font-size:12px;line-height:1.6;border-bottom:1px solid var(--line)}
+html body #mono-list .preview-notice[hidden]{display:none}
+html body #mono-list .preview-notice button{padding:2px 0;border:0;background:none;color:var(--ink);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 html body #mono-list [data-pm=refresh],html body #mono-list [data-pm=regroup]{width:auto;white-space:nowrap;padding:5px 8px;font-size:10px}
 html body #rules-dialog .rules-intro{font-size:12px;color:var(--muted);line-height:1.7;margin:0 0 24px;max-width:680px}
 html body .rules-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:32px;align-items:start}
@@ -202,6 +212,11 @@ html body #mono-hero .hero-stat strong{font-family:inherit}
 html body #mono-list{background:var(--paper);width:100%;min-width:0}
 html body #mono-list .list-tools{position:sticky;top:76px;z-index:15;background:var(--paper);border-top:0}
 html body #mono-list .item{width:100%;border-radius:0;box-shadow:none;margin:0}
+/* Only the active row traverses the preview. Its auto stacking level keeps
+   difference blending connected to the image; other rows paint underneath. */
+html body #mono-list .item:not(.is-hovered){z-index:-2;background:var(--paper)}
+html body #mono-list .index{pointer-events:none}
+html body #mono-list .index>*{pointer-events:auto}
 html body #mono-list .item-main{background:none;border:0;border-radius:0;min-width:0}
 html body #mono-list .item-title{font-weight:400}
 html body #mono-list .tool{border:0;background:none;border-radius:0}
@@ -216,7 +231,7 @@ html body #mono-list .row-group{overflow:hidden;white-space:nowrap;text-overflow
 html body .row-state{color:var(--muted);font-size:10px;white-space:nowrap;align-self:center}
 html body [hidden]{display:none!important}
 html body #recap{margin:0 0 12px;background:none;border:0;border-radius:0;padding:0;box-shadow:none}
-html body #recap .recap-identity,html body #recap-summary,html body #review-metrics{display:none}
+html body #recap .recap-identity,html body #recap-summary{display:none}
 html body #recap .recap-heading{display:flex;justify-content:flex-end;min-width:0}
 html body #recap .recap-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 html body #recap .recap-actions button{font-size:11px;padding:8px 10px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:0}
@@ -274,40 +289,6 @@ html body .mini-icon{background:none;color:var(--ink);border:0}
 html body #ai-onboarding{margin:8px 0 20px;padding:18px;border:1px solid var(--line);background:var(--surface);border-radius:0;color:var(--ink)}
 html body #ai-onboarding h2{font-size:16px;color:var(--ink)}
 html body #ai-onboarding p{font-size:12px}
-html body #review-dashboard{margin-top:16px}
-html body .rv-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}
-html body .review-card{width:100%;max-width:none;min-width:0;box-shadow:none;border:0;border-top:2px solid var(--ink);border-radius:0;background:var(--surface);padding:22px;margin:0;color:var(--ink)}
-html body .review-card .card-heading{background:none;border:0;margin-bottom:20px;min-width:0}
-html body .review-card .card-heading h2{font-size:15px;color:var(--ink);white-space:nowrap;margin:0}
-html body .rv-allocation-body{display:flex;flex-direction:column;gap:22px;align-items:stretch}
-html body .rv-distribution-total{display:flex;flex-direction:column;gap:10px}
-html body .rv-distribution-total strong{font-size:44px;line-height:1.2;letter-spacing:-2px;font-weight:700;color:var(--ink)}
-html body .rv-distribution-total strong small{font-size:16px;font-weight:400;letter-spacing:0;margin:0 8px 0 2px}
-html body .rv-hour-summary{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin:24px 0}
-html body .rv-hour-summary strong{font-size:48px;line-height:1.2;color:var(--ink);letter-spacing:-2px}
-html body .rv-note,html body .rv-caption,html body .rv-legend-row,html body .rv-hour-summary span{color:var(--muted)}
-html body .rv-distribution-total span{font-size:11px;color:var(--muted)}
-html body .rv-stackbar{display:flex;height:12px;gap:3px;filter:grayscale(1)}
-html body .rv-dot{filter:grayscale(1)}
-html body .rv-section-icon{display:none}
-html body .rv-legend{min-width:0}
-html body .rv-legend-row{display:grid;grid-template-columns:8px minmax(60px,1fr) auto;gap:8px;font-size:11px}
-html body .rv-legend-row>:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-html body .rv-percent,html body .rv-distribution-track{display:none}
-html body .rv-donut{width:170px;height:170px;filter:grayscale(1)}
-html body .rv-donut-core{background:var(--surface);color:var(--ink)}
-html body .rv-hour-fill,html body .rv-hour[aria-pressed=true] .rv-hour-fill{background:var(--ink)}
-html body .rv-hours{display:grid;grid-template-columns:repeat(var(--review-hours,24),minmax(0,1fr));gap:3px}
-html body .rv-hour{min-width:0;background:none;color:var(--muted)}
-html body .rv-hour-label{font-size:9px}
-html body .rv-journey{margin-top:28px}
-html body .rv-journey-tools{display:flex;gap:12px;flex-wrap:wrap}
-html body .rv-toggle{background:none;border:1px solid var(--line);border-radius:0}
-html body .rv-toggle button{color:var(--ink);font-size:11px;border-radius:0}
-html body .rv-toggle button[aria-pressed=true]{background:var(--ink);color:var(--paper);box-shadow:none}
-html body .rv-stop-button,html body .rv-detail{background:var(--paper);color:var(--ink);border-radius:0}
-html body .rv-method{color:var(--muted);font-size:12px;margin-top:20px}
-html body .swimlane{filter:grayscale(1)}
 html body .placeholder-art{background:var(--surface);color:var(--ink);padding:24px;overflow:hidden}
 html body .placeholder-art strong{font-size:22px;line-height:1.4;overflow-wrap:anywhere}
 html body .placeholder-art small{font-size:10px}
@@ -317,7 +298,7 @@ html body #mono-row-menu{position:fixed;margin:0;padding:6px;min-width:170px;bor
 html body #mono-row-menu button{display:block;width:100%;border:0;background:transparent;color:inherit;text-align:left;padding:10px 12px;font-size:12px;cursor:pointer}
 html body #mono-row-menu button:hover,html body #mono-row-menu button:focus-visible{background:var(--ink);color:var(--paper)}
 html body #mono-about{border-top:1px solid var(--line);margin-top:24px;padding-top:24px}
-/* Settings are grouped by task, with one shared save action. */
+/* Settings are grouped by task,with one shared save action. */
 html body #settings-form .settings-grid{align-items:start;gap:32px}
 @media(max-width:1100px){html body #settings-form .settings-grid{grid-template-columns:1fr}}
 html body #settings-form #storage-controls{margin:0;padding:0;border:0;border-top:2px solid var(--ink)}
@@ -334,17 +315,21 @@ html body .app .top-title{display:none!important}
 html body[data-mono-view="settings"] #mono-hero .hero-stat{display:none}
 html body[data-mono-view="rules"] #mono-hero .hero-stat{display:none}
 html body #storage-controls .storage-action{border-top:1px solid var(--line);margin-top:20px;padding-top:20px}
-html body #storage-controls .storage-action h4{font-size:12px;margin:0 0 6px}
-html body #storage-controls .storage-action-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+html body #storage-controls .storage-action-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 html body #storage-controls .storage-action-controls select{width:auto;flex:1;min-width:120px}
 html body #storage-controls .storage-action-controls button{margin:0}
+html body #storage-summary{margin:0;display:grid;gap:8px;font-size:12px;color:var(--muted)}
+html body #storage-summary>div{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+html body #storage-summary dt,html body #storage-summary dd{margin:0}
+html body #storage-summary dd{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+html body #settings-form #connection-result:empty{display:none}
 html body .cached-thumbnail{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
 html body #mono-preview .cached-thumbnail{max-height:55vh;object-fit:contain}
 html body #toast{background:var(--ink);color:var(--paper);border-radius:0;bottom:40px;z-index:100}
 html body #statusbar{z-index:31;background:var(--paper);color:var(--muted);border-top:1px solid var(--line)}
-@media(max-width:1100px){html body .rv-allocation-body{grid-template-columns:1fr}html body .rv-donut{margin:auto}html body .row-state{display:none}}
-@media(max-width:800px){html body .app>.workspace.atlas{padding:25px 20px 50px}html body .app>.topbar{height:62px;padding:0 18px}html body .app .mode{height:62px}html body #mono-list .list-tools{top:62px}html body #search-toolbar{left:18px;right:18px;top:70px}html body .rv-top{grid-template-columns:1fr}html body .appearance-row{gap:8px}html body .appearance-controls button{padding:8px}html body .rv-allocation-body{grid-template-columns:170px minmax(0,1fr)}}
-@media(max-width:600px){html body .rv-allocation-body{grid-template-columns:1fr}html body .rv-hours{gap:1px}html body .rv-hour-label{font-size:8px}html body .review-card{padding:16px}html body #mono-hero h1{font-size:21px}html body #mono-list .row-state{display:none}html body .dialog-actions{flex-wrap:wrap}html body .appearance-row{display:block}html body .appearance-segment,html body .language-picker{margin-top:8px}html body #recap .recap-actions{justify-content:flex-start}html body #more-menu .menu{max-width:calc(100vw - 30px);right:0}html body #mono-list .view-controls{gap:3px}}
+@media(max-width:1100px){html body .row-state{display:none}}
+@media(max-width:800px){html body .app>.workspace.atlas{padding:25px 20px 50px}html body .app>.topbar{height:62px;padding:0 18px}html body .app .mode{height:62px}html body #mono-list .list-tools{top:62px}html body #search-toolbar{left:18px;right:18px;top:70px}html body .appearance-row{gap:8px}html body .appearance-controls button{padding:8px}}
+@media(max-width:600px){html body #mono-hero h1{font-size:21px}html body #mono-list .row-state{display:none}html body .dialog-actions{flex-wrap:wrap}html body .appearance-row{display:block}html body .appearance-segment,html body .language-picker{margin-top:8px}html body #recap .recap-actions{justify-content:flex-start}html body #more-menu .menu{max-width:calc(100vw - 30px);right:0}html body #mono-list .view-controls{gap:3px}}
 @media(max-width:800px){html body .app .mobile-menu{display:grid;flex-shrink:0;margin-right:15px}html body #settings-form .settings-grid{grid-template-columns:1fr}html body .app .top-tools{margin-left:auto;gap:6px}}
 
 /* Keep source identity readable before spending space on URLs and decoration. */
@@ -393,3 +378,19 @@ html body #mono-preview .preview-badge{position:static;display:block;max-width:1
 html body .preview-capture-details{margin-top:10px}
 html body .preview-capture-details summary{font-size:11px;letter-spacing:0;cursor:pointer}
 html body .settings-disclosure summary:focus-visible,html body .preview-capture-details summary:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
+/* Batch preview controls share the list toolbar and remain visible across views. */
+.preview-batch-progress{display:flex;align-items:center;gap:16px;margin:12px 0;padding:12px 16px;border:1px solid var(--line,currentColor);font-size:13px}
+.preview-batch-progress[hidden]{display:none}
+.preview-batch-progress>div{flex:1;min-width:0}
+.preview-batch-progress small{display:block;opacity:.7;margin-top:5px;overflow-wrap:anywhere}
+.preview-batch-progress progress{display:block;width:100%;height:5px;margin-top:9px;accent-color:currentColor}
+.preview-batch-progress progress[hidden]{display:none}
+.preview-batch-progress details{margin-top:8px;overflow-wrap:anywhere}
+.preview-batch-progress details[hidden]{display:none}
+.preview-batch-progress summary{cursor:pointer;font:inherit;letter-spacing:0;padding:0;color:inherit}
+.preview-batch-progress summary::before{content:'▸';display:inline-block;margin-right:6px}
+.preview-batch-progress details[open] summary::before{content:'▾'}
+.preview-batch-progress summary:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.preview-batch-progress ul{padding-left:20px;max-height:240px;overflow:auto}
+.preview-batch-progress li{margin:8px 0}
+html body #mono-list [data-pm="fill-previews"],.preview-batch-progress [data-batch-cancel]{width:auto;padding:0 8px;white-space:nowrap}

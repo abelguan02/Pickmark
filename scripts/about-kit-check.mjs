@@ -46,12 +46,27 @@ try{
   assert.equal(await dialog.locator('.about-name').evaluate(e=>getComputedStyle(e).animationName),'none');
   const openedBeforeSupport=opened.length;
   await dialog.locator('[data-about-link=support]').click();assert.equal(await dialog.locator('#about-support-panel').isVisible(),true);
-  assert.match(await dialog.locator('#about-support-panel').textContent(),language==='zh'?/二维码待配置/:/QR code not configured/);
-  assert.equal(await dialog.locator('#about-support-panel a,#about-support-panel img,#about-support-panel canvas').count(),0);
+  const tabs=dialog.getByRole('tab');
+  assert.equal(await tabs.first().getAttribute('aria-selected'),'true');
+  assert.equal(await dialog.locator('.about-support-qr:visible').getAttribute('src'),'support-qr.jpg');
+  for(const [src,dimensions,label] of [['support-qr.jpg',[395,404],language==='zh'?'微信':'WeChat'],['support-alipay-qr.jpg',[899,895],language==='zh'?'支付宝':'Alipay']]){
+   const qr=dialog.locator(`.about-support-qr[src="${src}"]`);
+   if(src!=='support-qr.jpg')await tabs.last().click();
+   assert.equal(await dialog.locator('.about-support-qr:visible').count(),1);
+   assert.equal(await qr.isVisible(),true);
+   await qr.evaluate(image=>image.decode());
+   assert.ok((await qr.getAttribute('alt')).includes(label));
+   assert.ok((await dialog.getByRole('tab',{selected:true}).textContent()).includes(label));
+   assert.deepEqual(await qr.evaluate(image=>[image.naturalWidth,image.naturalHeight]),dimensions);
+  }
+  await p.keyboard.press('ArrowLeft');assert.equal(await tabs.first().getAttribute('aria-selected'),'true');
+  assert.equal(await dialog.locator('.about-support-qr:visible').getAttribute('src'),'support-qr.jpg');
+  assert.equal(await dialog.evaluate(e=>e.scrollWidth>e.clientWidth),false,'Expanded QR panel has no horizontal overflow');
+  assert.match(await dialog.locator('#about-support-panel').textContent(),language==='zh'?/无需赞赏/:/without a contribution/);
   assert.equal(await dialog.locator('[data-about-link=support]').getAttribute('aria-expanded'),'true');
   assert.equal(opened.length,openedBeforeSupport,'Support does not navigate anywhere');
-  await dialog.locator('[data-about-link=support]').click();
   if((width===1280&&language==='zh')||(width===320&&language==='en'))await p.screenshot({path:`/tmp/about-kit-${language}-${theme}-${width}.png`});
+  await dialog.locator('[data-about-link=support]').click();
   await p.keyboard.press('1');assert.equal(await p.locator(':focus').getAttribute('data-about-link'),'repo');
   await p.keyboard.press('ArrowDown');assert.equal(await p.locator(':focus').getAttribute('data-about-link'),'feedback');
   await p.keyboard.press('Escape');assert.equal(await dialog.evaluate(e=>e.open),false);
@@ -71,5 +86,5 @@ try{
  await p.locator('#top-help').click();assert.equal(await p.locator('[data-version]').textContent(),'v9.8.7');
  await p.keyboard.press('u');assert.equal(await p.locator('[data-update]').count(),0);
  await p.keyboard.press('Escape');
- assert.equal(opened.length,32);assert.deepEqual(external,[]);assert.deepEqual(errors,[]);console.log('PASS: 16 layout/theme/language cases, 32 mocked project-link openings by mouse/keyboard, isolated new tabs, QR placeholder, keyboard/Escape, guide, real version, copy success/failure, no unexpected network requests');
+ assert.equal(opened.length,32);assert.deepEqual(external,[]);assert.deepEqual(errors,[]);console.log('PASS: 16 layout/theme/language cases, 32 mocked project-link openings by mouse/keyboard, isolated new tabs, local support QR image, keyboard/Escape, guide, real version, copy success/failure, no unexpected network requests');
 }finally{await browser.close();}

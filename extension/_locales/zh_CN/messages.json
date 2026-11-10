@@ -3,7 +3,7 @@
     "message": "拾签"
   },
   "extensionDescription": {
-    "message": "整理标签页与书签，在本地回顾浏览记录，可选用 AI 辅助标签分类。"
+    "message": "整理标签页与书签，在本机保存每日页面清单，可选用 AI 辅助分类。"
   },
   "actionTitle": {
     "message": "打开拾签侧边栏"

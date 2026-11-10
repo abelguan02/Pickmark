@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {storageBytes} from './storage-fixture.js';
+import {installThumbnailCache} from './thumbnail-fixture.js';
 import {requestRecordsSignature} from '../extension/classification-request.js';
 import {settingsSignature,defaults,dayKey,classificationContext} from '../extension/core.js';
 const event=()=>({listeners:[],addListener(fn){this.listeners.push(fn);}});
@@ -10,11 +12,12 @@ function storage(data){return{async get(keys){return Object.fromEntries((keys===
  const bytes=Object.entries(merged).reduce((sum,[key,item])=>sum+Buffer.byteLength(key)+Buffer.byteLength(JSON.stringify(item)),0);
  if(data===local&&bytes>10*1024*1024)throw new Error('QUOTA_BYTES quota exceeded');
  Object.assign(data,structuredClone(value));
-},async remove(keys){for(const key of keys)delete data[key];},async setAccessLevel(){}};}
+},async getBytesInUse(keys){return storageBytes(data,keys);},async remove(keys){for(const key of keys)delete data[key];},async setAccessLevel(){}};}
 const panelBehaviors=[];
 globalThis.chrome={sidePanel:{async setPanelBehavior(value){panelBehaviors.push(value)}},storage:{local:storage(local),session:storage(session)},runtime:{id:'test',getURL:path=>`chrome-extension://test/${path}`,onInstalled:event(),onStartup:event(),onMessage:event()},tabs:{async query(){return structuredClone(tabs)},async update(id,patch){updates.push({id,patch})},async create(value){if(value.url==='https://failure.test/')throw new Error('test failure');created.push(value);const tab={id:100+created.length,windowId:9,...value};tabs.push(tab);return tab;},onCreated:event(),onRemoved:event(),onUpdated:event(),onActivated:event()},windows:{async update(id,patch){updates.push({window:id,patch})}}};
 const maintenanceAlarms=[];
-chrome.alarms={async get(){return undefined;},async create(name,options){maintenanceAlarms.push({name,...options});},onAlarm:event()};
+chrome.alarms={async clear(){return true;},async get(){return undefined;},async create(name,options){maintenanceAlarms.push({name,...options});},onAlarm:event()};
+installThumbnailCache(chrome,{migrated:true});
 await import('../extension/background.js');
 const send=input=>{const message=input.type==='settings'&&!Object.hasOwn(input,'expectedSettings')?{...input,expectedSettings:settingsSignature(local.config)}:input;return new Promise((resolve,reject)=>chrome.runtime.onMessage.listeners[0](message,{id:'test',url:'chrome-extension://test/dashboard.html'},response=>response.error?reject(new Error(response.error)):resolve(response.value)));};
 

@@ -25,7 +25,7 @@ npm test
 npm run check
 ```
 
-基础检查无需先执行 `npm install`。需要在真实扩展中查看修改时，在 `chrome://extensions` 加载 `extension/`；改动后重新加载扩展并重新打开面板，视频脚本改动还需刷新测试网页。
+基础检查无需先执行 `npm install`。需要在真实扩展中查看修改时，在 `chrome://extensions` 加载 `extension/`；改动后重新加载扩展并重新打开面板，无需常驻网页脚本；补全预览使用按需主框架检查。
 
 ## 网页演示
 
@@ -58,8 +58,6 @@ macOS／Linux：
 PREVIEW_URL=http://127.0.0.1:4173 node scripts/ui-check.mjs
 PREVIEW_URL=http://127.0.0.1:4173 node scripts/history-check.mjs
 PREVIEW_URL=http://127.0.0.1:4173 node scripts/design-check.mjs
-PREVIEW_URL=http://127.0.0.1:4173 node scripts/review-check.mjs
-PREVIEW_URL=http://127.0.0.1:4173 node scripts/daylight-saving-check.mjs
 PREVIEW_URL=http://127.0.0.1:4173 node scripts/language-check.mjs
 ```
 
@@ -70,7 +68,6 @@ $env:PREVIEW_URL = 'http://127.0.0.1:4173'
 node scripts/ui-check.mjs
 node scripts/history-check.mjs
 node scripts/design-check.mjs
-node scripts/review-check.mjs
 node scripts/language-check.mjs
 ```
 
@@ -81,7 +78,12 @@ node scripts/language-check.mjs
 ```sh
 npx playwright install chromium
 node scripts/extension-check.mjs
+node scripts/event-storage-check.mjs
 ```
+
+`event-storage-check.mjs` 使用独立无界面浏览器和虚构页面，验证标题事件合并、记录稳定性、键盘关闭重复标签、过期关闭请求和 AI 基准校验；不使用个人浏览器数据。
+
+`node scripts/preview-batch-check.mjs` 使用独立无界面浏览器、本地合成页面和临时扩展副本，检查当前列表/书签分页范围、截图像素、画廊更新、窄屏、取消及临时页面隔离。仅在测试副本中预授予截图与书签权限，不覆盖 Chrome 授权弹窗。`preview-visible-check.mjs` 检查本机 Chrome 中正式扩展的后台截图、窗口和标签焦点事件、取消与调试断开；`preview-loading-check.mjs` 检查慢附属资源不会阻塞截图。当前后台截图原型的真实桌面验证使用 `node scripts/debugger-preview-probe.mjs --headed`，运行前须确认使用者当前空闲；无参数时无界面运行。旧 `background-preview-probe.mjs` 仅保留用于对照原可见窗口截图机制。
 
 可通过 `CHROMIUM_EXECUTABLE` 指向支持命令行侧载的浏览器。该脚本检查真实扩展和标签 API，但 AI 网络仍被拦截为模拟响应；它也不验证真实账户的模型权限。项目截至 2026-09-20 尚未完成该侧载脚本的环境验收。
 
@@ -92,8 +94,7 @@ node scripts/extension-check.mjs
 | `extension/background.js` | 串行处理扩展操作、本地存储、页面恢复与跳转 |
 | `extension/core.js` | 页面清单、规则、工作区与分类提交校验 |
 | `extension/organize-workflow.js`、`ai.js`、`providers.js` | 规则优先流程、分批 AI 请求、供应商适配 |
-| `extension/activity*.js`、`media.js` | 本地计时和视频状态检测 |
-| `extension/dashboard*`、`review*.js`、`swimlane.js` | 工作区和回顾界面 |
+| `extension/dashboard*`、`offset-ui.js` | 工作区、继续浏览和书签界面 |
 | `extension/i18n.js`、`translations.js`、`_locales/` | 面板翻译与扩展元数据翻译 |
 | `tests/` | Node 逻辑测试，包含模拟 Chrome／网络边界 |
 | `scripts/` | 静态检查、浏览器回归、打包 |
@@ -115,6 +116,6 @@ node scripts/extension-check.mjs
 npm run package
 ```
 
-输出 `dist/tabtrail-版本号.zip`，只包含 `extension/` 下的文件。打包要求 `package.json` 与 manifest 版本一致；脚本不会自动运行测试。只有 `python` 或 `py` 时，使用 `python scripts/package.py` 或 `py -3 scripts/package.py`。
+输出 `dist/Pickmark-版本号.zip` 和 SHA-256 校验文件，包含程序、安装说明、隐私和许可文件。打包要求 `package.json` 与 manifest 版本一致；脚本不会自动运行测试。只有 `python` 或 `py` 时，使用 `python scripts/package.py` 或 `py -3 scripts/package.py`。
 
 维护者发布流程见 [发布指南](docs/RELEASE.md)。

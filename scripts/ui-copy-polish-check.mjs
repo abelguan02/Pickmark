@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 const version=JSON.parse(readFileSync(new URL('../extension/manifest.json',import.meta.url))).version;
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({channel:'chrome',headless:true});
-const base='http://127.0.0.1:4196';
+const base=process.env.PREVIEW_URL||'http://127.0.0.1:4196';
 try{
  const c=await browser.newContext();
  await c.addInitScript(()=>localStorage.setItem('pickmark-guide-v1','seen'));
@@ -18,7 +18,21 @@ try{
   assert.equal(await p.locator('#statusbar').isVisible(),false);
   assert.equal(await p.locator('#mono-about h3,#mono-about details,#mono-version').count(),0,'No duplicate inline About');
   assert.equal(await p.locator('#provider-endpoint').isVisible(),false);
-  assert.match(await p.locator('#key-help').textContent(),lang==='en'?/No key configured/:/尚未配置/);
+  assert.equal(await p.locator('#key-help').count(),0,'Key state belongs in the input, not another helper paragraph');
+  assert.equal(await p.locator('#api-key').getAttribute('placeholder'),'API Key');
+  assert.equal(await p.locator('#connection-result').isVisible(),false,'Connection feedback appears only after a test');
+  assert.equal(await p.locator('#storage-controls .storage-action h4,#storage-controls .storage-action p').count(),0,'Buttons name cleanup actions without duplicate headings or paragraphs');
+  assert.equal(await p.locator('#storage-summary').isVisible(),false,'Diagnostics are on demand');
+  await p.locator('.storage-details summary').focus();await p.keyboard.press('Enter');
+  assert.equal(await p.locator('#storage-summary').isVisible(),true);
+  assert.match(await p.locator('.storage-details').innerText(),lang==='en'?/limits may shorten retention/:/上限可能缩短保留时间/);
+  assert.equal(await p.locator('#storage-summary dd').count(),4);
+  await p.locator('.storage-details summary').click();
+  await p.locator('.recording-details summary').click();
+  assert.match(await p.locator('.recording-details').innerText(),lang==='en'?/Incognito.*subdomains/:/无痕窗口不记录.*子域名/s);
+  assert.match(await p.locator('.recording-details').innerText(),lang==='en'?/not page text/:/不读取正文/);
+  await p.locator('.recording-details summary').click();
+  assert.match(await p.locator('#excluded').locator('..').locator('..').innerText(),lang==='en'?/Saving deletes history/:/保存后删除/);
   assert.ok(await p.locator('#ai-provider').isVisible());
   await p.locator('#connection-details summary').click();
   assert.ok(await p.locator('#provider-endpoint').isVisible());
@@ -35,7 +49,7 @@ try{
    assert.equal(/[\u4e00-\u9fff]/.test(copy),false,'English settings contain no untranslated UI copy');
   }
   await privacy.locator('summary').click();
-  assert.match(await p.locator('[data-cleanup=old]').innerText(),lang==='en'?/cannot be revisited/:/无法回顾/);
+  assert.equal(await p.locator('#settings-form .help:visible').count(),2,'Only AI cost and exclusion deletion notices remain as persistent helper text');
   await p.locator('#excluded').fill('example.invalid');
   await p.locator('#open-about-help').click();await p.waitForFunction(v=>document.querySelector('#pickmark-about [data-version]')?.textContent==='v'+v,version);
   assert.equal(await p.locator('#pickmark-about [data-version]').innerText(),'v'+version);await p.keyboard.press('Escape');

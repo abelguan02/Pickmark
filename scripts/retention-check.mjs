@@ -6,8 +6,8 @@ const results=[];
 for(const count of [100,1000,10000]){
  const records=Array.from({length:count},(_,i)=>({id:String(i),day:dayKey(Date.now()-(i%90)*86400000),url:'https://synthetic.test/'+i,title:'Synthetic '+i,group:'Saved',manualGroup:i===0}));
  records[0].day=dayKey(Date.now()-100*86400000);records[0].group='Human';
- const start=performance.now(),p=cleanupSnapshot({config:defaults(),records,visits:records},[{url:records[0].url}]);const ms=performance.now()-start;
- assert.equal(p.records.find(r=>r.url===records[0].url).group,'Human');assert.ok(p.records.length<=5000);assert.ok(p.visits.length<=12000);results.push({count,ms:+ms.toFixed(2),kept:p.records.length});
+ const start=performance.now(),p=cleanupSnapshot({config:defaults(),records},[{url:records[0].url}]);const ms=performance.now()-start;
+ assert.equal(p.records.find(r=>r.url===records[0].url).group,'Human');assert.ok(p.records.length<=5000);assert.equal(p.visits,undefined);results.push({count,ms:+ms.toFixed(2),kept:p.records.length});
 }
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');const b=await chromium.launch({channel:'chrome',headless:true});
 try{

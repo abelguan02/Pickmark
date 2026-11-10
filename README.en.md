@@ -4,7 +4,7 @@
 
 Pickmark is a desktop Chrome extension for finding your way back to open tabs. Group articles from the same site together, or organize research from several sites under one topic. The next day, open **Continue browsing** to pick up a page from yesterday’s list.
 
-**Versions and downloads.** The screenshots below show development version **0.1.22**. The public GitHub download and the extension on the default branch are both **0.1.9**. Website grouping and background preview capture are among the features awaiting a public release. [Download the 0.1.9 ZIP](https://github.com/abelguan02/Pickmark/releases/download/v0.1.9/Pickmark-0.1.9.zip) · [Releases](https://github.com/abelguan02/Pickmark/releases)
+**Latest release · 0.1.22.** This version adds website grouping and background preview capture since the previous public release. All screenshots show this version. [Download Pickmark 0.1.22](https://github.com/abelguan02/Pickmark/releases/download/v0.1.22/Pickmark-0.1.22.zip) · [Release notes and SHA-256 checksum](https://github.com/abelguan02/Pickmark/releases/tag/v0.1.22)
 
 ![Pickmark 0.1.22 workspace with nine tabs across Natural science, Visual design, and Maps and travel](docs/screenshots/0.1.22/workspace-en.png)
 
@@ -40,9 +40,9 @@ Version 0.1.21 removed Daily review, duration estimates, and tab-switching paths
 
 ## Install the public release
 
-1. Download and extract [Pickmark-0.1.9.zip](https://github.com/abelguan02/Pickmark/releases/download/v0.1.9/Pickmark-0.1.9.zip). Keep the extracted folder in a permanent location.
+1. Download and extract [Pickmark-0.1.22.zip](https://github.com/abelguan02/Pickmark/releases/download/v0.1.22/Pickmark-0.1.22.zip). Keep the extracted folder in a permanent location.
 2. Open `chrome://extensions` in desktop Chrome, enable **Developer mode**, and select **Load unpacked**. Choose the folder that directly contains `manifest.json`. If you downloaded the entire repository as a source ZIP, select its `extension/` subfolder.
-3. Pin Pickmark in Chrome’s Extensions menu and click its icon to open the workspace, or select Pickmark in Chrome’s side panel. To update an existing installation, replace the program files in the original folder and click **Reload** on the same extension. Uninstalling deletes the extension’s local data. [0.1.9 installation and update guide](docs/INSTALL-UPDATE-0.1.9.md)
+3. Pin Pickmark in Chrome’s Extensions menu and click its icon to open the workspace, or select Pickmark in Chrome’s side panel. To update an existing installation, replace the program files in the original folder and click **Reload** on the same extension. Uninstalling deletes the extension’s local data. [0.1.22 installation and update guide](docs/INSTALL-UPDATE-0.1.22.md)
 
 ## Data and privacy in 0.1.22
 
@@ -52,7 +52,7 @@ Version 0.1.21 removed Daily review, duration estimates, and tab-switching paths
 | AI classification | Local rules and manual grouping work without a key. When AI is enabled, Pickmark sends titles, domains, and classification context directly to your provider, which may charge for requests. Requests omit screenshots and page bodies. A visible topic workspace with recording enabled automatically processes candidates in batches of up to 200 pages. |
 | Keys and backups | Provider keys stay in this browser’s local extension storage. Rule backups can include saved AI preferences. Page records, images, and API keys are excluded from those backups. |
 
-Available providers include DeepSeek, OpenAI, Anthropic Claude, Google Gemini, Qwen, and Kimi. Upgrading from a version with duration tracking to 0.1.21 or later clears legacy timing data. The public 0.1.9 release has its own data collection and permission details. [Privacy notes for 0.1.9](https://github.com/abelguan02/Pickmark/blob/v0.1.9/PRIVACY.md)
+Available providers include DeepSeek, OpenAI, Anthropic Claude, Google Gemini, Qwen, and Kimi. Upgrading from a version with duration tracking to 0.1.21 or later clears legacy timing data. For collection, permissions, and deletion controls, see the [privacy notes](PRIVACY.md).
 
 ## About the project
 

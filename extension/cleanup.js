@@ -1,5 +1,4 @@
 import {defaults,dayKey,eligible,retainRecords} from './core.js';
-import {retainVisits} from './activity.js';
 import {THUMBNAIL_KEY,retainThumbnails} from './thumbnails.js';
 // Carry only already known open pages. Never reopen tabs or read bookmarks.
 export function preserveCurrent(records,tabs,config,now=Date.now()){
@@ -17,8 +16,7 @@ export function cleanupSnapshot(data,tabs,{now=Date.now(),mode='auto',days=7}={}
  // Under the count/byte budget, prefer current open state over closed history.
  const isCurrent=r=>r.day===dayKey(now)&&open.has(r.url);
  records=retainRecords([...records.filter(r=>!isCurrent(r)),...records.filter(isCurrent)],policy,now);
- const visits=mode==='all'?[]:retainVisits(data.visits||[],policy,now);
  const keptIds=new Set(records.map(r=>r.id)),removed=(data.records||[]).some(r=>!keptIds.has(r.id));
  if(mode!=='auto'||removed)config.historyRevision=(config.historyRevision||0)+1;
- return {records,visits,config,[THUMBNAIL_KEY]:retainThumbnails(data[THUMBNAIL_KEY]||{},config.excluded,now),lastCleanupAt:now,...(mode==='all'?{activityCursor:null,trackingSince:null}:{})};
+ return {records,config,[THUMBNAIL_KEY]:retainThumbnails(data[THUMBNAIL_KEY]||{},config.excluded,now),lastCleanupAt:now};
 }

@@ -3,7 +3,7 @@
     "message": "Pickmark"
   },
   "extensionDescription": {
-    "message": "Organize tabs and bookmarks, review browsing locally, and optionally classify tabs with AI."
+    "message": "Organize tabs and bookmarks, keep daily page lists locally, and optionally classify pages with AI."
   },
   "actionTitle": {
     "message": "Open the Pickmark side panel"

@@ -1,5 +1,5 @@
 import {dispatchClassification} from './classification-request.js';
-import {historyCandidates,classificationContext,orderedWorkspaces,UNGROUPED} from './core.js?v=20260917-15';
+import {historyCandidates,classificationContext,orderedWorkspaces,UNGROUPED} from './core.js';
 
 // Explicit, bounded repair of one day's unclassified records. Never opens tabs.
 export async function organizeHistory({send,day,ids,allowAI=true,expectedContext,request=null,onProgress=()=>{},shouldContinue=()=>true}) {

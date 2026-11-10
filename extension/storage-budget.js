@@ -1,4 +1,4 @@
-// Both histories share Chrome's 10 MiB local quota with settings and credentials.
+// Page records share Chrome's 10 MiB local quota with settings and credentials.
 export const HISTORY_BYTES=4*1024*1024;
 const LOCAL_BYTES=10*1024*1024-128*1024;
 export const isStorageCapacityError=error=>error?.code==='STORAGE_CAPACITY'||/QUOTA_BYTES|quota.*exceed|exceed.*quota/i.test(error?.message||'');
@@ -31,9 +31,18 @@ export function retainProtected(items,budget,protect,maxItems=Infinity){
 
 // All callers run on the background worker's serial queue. Budget the merged
 // storage, including unchanged histories, before a single atomic write.
-export async function writeLocal(value,api=chrome) {
- const stored=await api.storage.local.get(null),next={...stored,...value};
- const {records=[],visits=[],...other}=next;
+export async function writeLocal(value,api=chrome,{signal}={}) {
+ const readKeys=['config',...(!Object.hasOwn(value,'records')?['records']:[])];
+ const replacedKeys=[...new Set(['records','config',...Object.keys(value)])];
+ const [stored,totalBytes,replacedBytes]=await Promise.all([
+  api.storage.local.get(readKeys),
+  api.storage.local.getBytesInUse(null),
+  api.storage.local.getBytesInUse(replacedKeys)
+ ]);
+ const {records=[]}={...stored,...value};
+ const patch={...value};
+ if(patch.config)patch.config={...patch.config,historyRevision:Math.max(stored.config?.historyRevision||0,patch.config.historyRevision||0)};
+ const config=Object.hasOwn(patch,'config')?patch.config:stored.config;
  const tabs=api.tabs?await api.tabs.query({}):null;
  const open=tabs&&new Set(tabs.filter(t=>!t.incognito).map(t=>t.url));
  const latest=new Map();
@@ -42,20 +51,25 @@ export async function writeLocal(value,api=chrome) {
  // Protect the latest manual state of each open URL, even before startup maintenance.
  const protectedIds=new Set([...latest.values()].filter(r=>r.manualGroup&&(!open||open.has(r.url))).map(r=>r.id));
  const protectedRows=records.filter(r=>protectedIds.has(r.id));
- const overhead=Object.entries(other).reduce((sum,[key,item])=>sum+encoder.encode(key).length+jsonBytes(item),0);
- const available=Math.max(4,LOCAL_BYTES-overhead-'recordsvisits'.length);
+ // Count unchanged large values in Chrome without fetching or serializing them.
+ const overhead=Object.entries(value).filter(([key])=>!['records','config'].includes(key)).reduce((sum,[key,item])=>sum+encoder.encode(key).length+jsonBytes(item),totalBytes-replacedBytes);
  const reserved=jsonBytes(protectedRows);
- if(reserved+2>available)throw Object.assign(Error('空间不足，未保存本次更改；当前标签的人工分类已保留。 / Not enough storage; changes were not saved and manual classifications remain intact.'),{code:'STORAGE_CAPACITY'});
- // Spend disposable history first, borrowing its budget to keep manual state.
- const recordBudget=Math.max(reserved,Math.min(HISTORY_BYTES,Math.max(2,available/2)));
- const keptRecords=retainProtected(records,recordBudget,r=>protectedIds.has(r.id),5000);
- const keptVisits=retainByBytes(visits,Math.min(HISTORY_BYTES,available-jsonBytes(keptRecords)));
- const patch={...value};
+ function fitRecords(config){
+  const configBytes=config===undefined?0:'config'.length+jsonBytes(config);
+  const available=LOCAL_BYTES-overhead-configBytes-'records'.length;
+  if(reserved+2>available)throw Object.assign(Error('空间不足，未保存本次更改；当前标签的人工分类已保留。 / Not enough storage; changes were not saved and manual classifications remain intact.'),{code:'STORAGE_CAPACITY'});
+  // Spend disposable history first, borrowing its budget to keep manual state.
+  const recordBudget=Math.max(reserved,Math.min(HISTORY_BYTES,Math.max(2,available)));
+  return {available,keptRecords:retainProtected(records,recordBudget,r=>protectedIds.has(r.id),5000)};
+ }
+ let {available,keptRecords}=fitRecords(config);
  if(keptRecords.length!==records.length){
-  patch.config={...next.config,historyRevision:Math.max(stored.config?.historyRevision||0,next.config?.historyRevision||0)+1};
- }else if(patch.config){patch.config={...patch.config,historyRevision:Math.max(stored.config?.historyRevision||0,patch.config.historyRevision||0)};}
+  patch.config={...config,historyRevision:Math.max(stored.config?.historyRevision||0,config?.historyRevision||0)+1};
+  // The new revision field (or digit) also consumes space in the final write.
+  ({available,keptRecords}=fitRecords(patch.config));
+ }
  if(Object.hasOwn(value,'records')||keptRecords.length!==records.length)patch.records=keptRecords;
- if(Object.hasOwn(value,'visits')||keptVisits.length!==visits.length)patch.visits=keptVisits;
+ signal?.throwIfAborted();
  await api.storage.local.set(patch);
  return patch;
 }

@@ -33,7 +33,11 @@ html body #pickmark-about .about-section{display:flex;align-items:center;gap:12p
 #pickmark-about .about-menu :is(button,a):is(:hover,:focus-visible) small{color:inherit}
 #pickmark-about .about-menu [aria-disabled=true]{cursor:default}
 #pickmark-about .about-inset{border:1px dashed var(--ab-line);padding:12px 16px;margin-top:10px}
-#pickmark-about .about-qr-placeholder{padding:20px 12px;border:1px dashed var(--ab-line);color:var(--ab-muted);font-size:12px;text-align:center}
+#pickmark-about .about-support-qr{display:block;width:min(240px,100%);height:auto;aspect-ratio:1;object-fit:contain;margin:12px auto;background:#fff}
+#pickmark-about .about-support-tabs{display:flex;justify-content:center;margin:12px 0}
+#pickmark-about .about-support-tabs button{border:1px solid var(--ab-line);padding:7px 12px;font-family:inherit;font-size:12px;line-height:1.4}
+#pickmark-about .about-support-tabs button+button{border-left:0}
+#pickmark-about .about-support-tabs [aria-selected=true]{background:var(--ab-accent);color:var(--ab-on)}
 #pickmark-about button:disabled{opacity:.65;cursor:default}
 #pickmark-about .about-guide-link{width:100%;display:flex;justify-content:space-between;gap:12px;padding:12px 0;border:0;text-align:left;font-size:12px;color:var(--ab-accent)}
 #pickmark-about .about-tips summary{font-size:11px;color:var(--ab-muted);cursor:pointer;padding:8px 0}

@@ -17,19 +17,11 @@ try{
    await page.locator('#more-menu').evaluate(e=>e.open=false);
    for(const width of [1440,1200,1100,1050,1024,900,861,850,768,720,719,390,320]){
     await page.setViewportSize({width,height:1000});
-    for(const view of ['quicklinks','daily-review','continue-browsing']){
+    for(const view of ['quicklinks','continue-browsing']){
      await page.locator('#'+view).click();
      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${theme}/${mode}/${width}/${view} overflow`);
      const rects=await page.locator('.topbar').evaluate(e=>[...e.querySelectorAll('.view-tabs, .header-actions')].map(x=>{const r=x.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};}));
      assert.ok(rects[0].right<=rects[1].left+1,'Navigation overlaps actions');
-     if(view==='daily-review'){
-      assert.ok(await page.locator('.review-card').evaluateAll(cards=>cards.every(card=>{
-       const parent=card.parentElement,columns=getComputedStyle(parent).gridTemplateColumns.split(' '),available=parent.classList.contains('rv-top')?parseFloat(columns[[...parent.children].indexOf(card)%columns.length]):parent.clientWidth;
-       return Math.abs(card.getBoundingClientRect().width-available)<2;
-      })),`${theme}/${width}: review cards must fill their grid cells`);
-      assert.ok(await page.locator('.rv-legend-row').evaluateAll(rows=>rows.every(row=>row.scrollWidth<=row.clientWidth&&row.children[1].getBoundingClientRect().width>=55)),`${theme}/${width}: readable distribution labels`);
-      assert.ok(await page.locator('.review-card .card-heading h2').evaluateAll(titles=>titles.every(el=>el.getBoundingClientRect().height<32)),`${theme}/${width}: titles must not wrap vertically`);
-     }
      if([1440,861,390].includes(width))await page.screenshot({path:`${output}${theme}-${mode}-${width}-${view}.png`,fullPage:true});
     }
    }

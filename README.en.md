@@ -2,151 +2,60 @@
 
 [简体中文](README.md) | **English**
 
-**Organize scattered tabs into topic workspaces, retrace your browsing, and pick up where you left off.**
+Pickmark is a desktop Chrome extension for finding your way back to open tabs. Group articles from the same site together, or organize research from several sites under one topic. The next day, open **Continue browsing** to pick up a page from yesterday’s list.
 
-Pickmark (formerly Tabtrail) is a desktop Chrome extension. It organizes tabs and bookmarks into categories, with local keyword rules, manual adjustments, and optional AI classification. It also keeps daily page lists and estimated browsing time on your device, helping you find your way back to earlier pages.
+**Versions and downloads.** The screenshots below show development version **0.1.22**. The public GitHub download and the extension on the default branch are both **0.1.9**. Website grouping and background preview capture are among the features awaiting a public release. [Download the 0.1.9 ZIP](https://github.com/abelguan02/Pickmark/releases/download/v0.1.9/Pickmark-0.1.9.zip) · [Releases](https://github.com/abelguan02/Pickmark/releases)
 
-Current version: **0.1.9 · Preview release**. It is not yet available in the Chrome Web Store. Download the [0.1.9 installation ZIP](https://github.com/abelguan02/Pickmark/releases/download/v0.1.9/Pickmark-0.1.9.zip) and follow the [installation and in-place update guide (Chinese / English)](docs/INSTALL-UPDATE-0.1.9.md). AI features require your own provider API key. Local rules, manual classification, daily review, and resume browsing work without AI.
+![Pickmark 0.1.22 workspace with nine tabs across Natural science, Visual design, and Maps and travel](docs/screenshots/0.1.22/workspace-en.png)
 
-![Workspaces demo: open tabs organized into topic cards](docs/dashboard-preview-en.png)
+## Find pages by website or topic
 
-Browse your open pages by topic and click a page to return to its tab.
+- **Website** groups pages by domain. Select a site in the sidebar to see its pages. This view works without AI and preserves each page’s topic assignment.
+- **Topic** brings together pages from different sites. In **Categories & rules**, match a keyword in a title or domain to a category, or change one page’s category by hand. For optional AI classification, add your own provider key in Settings. Automatic organization preserves manual assignments. **Regroup** asks you to confirm the scope before it reevaluates pages.
+- **Tabs and bookmarks** remember their grouping modes separately. Select a tab entry to return to the open tab. Grant bookmark access to browse Chrome’s original folders or categorize bookmarks within Pickmark. Bookmark AI asks you to confirm its scope. Chrome keeps its folder structure and tab order.
 
-*Screenshots and the web demo use familiar websites and independently written fictional titles. They do not use personal browsing history or represent those websites’ current pages. Classifications, browsing paths, and durations are sample data, not evidence of real AI classification quality. The English screenshots use translated sample titles and workspace names; switching the extension language does not translate your own page titles or workspace names.*
+![The same tabs grouped by website, with each domain and its page count in the sidebar](docs/screenshots/0.1.22/websites-en.png)
 
-## Why Pickmark exists
+## What does the gallery show before a page has a preview?
 
-Pickmark began with a familiar problem for its developer: opening many tabs throughout the day, starting with one question, then being drawn toward something else. By evening, the browser still held plenty of pages, but it was hard to remember where that day’s attention had gone or how one topic had led to another.
+Automatic preview capture starts off. The three bookmarks below belong to the **Weekend reading** folder, and the cache holds **zero images**. Each card shows the page title, site, and “Automatic previews are off.” You can already open a page by clicking its card.
 
-The original idea was called **Attention Atlas**: leaving a few traces that help you look back at the different things that caught your attention. The question was not only how to tidy up tabs, but also what you explored, where your thinking went, and which page you wanted to return to next.
+![Three bookmarks with no screenshot, the automatic previews off message, and the Fill previews button](docs/screenshots/0.1.22/gallery-empty-en.png)
 
-**Pickmark is the extension’s current name; Attention Atlas remains its inspiration and vision.** The current version supports your own reflection through topic workspaces, estimated browsing time, and page-switching paths. These records do not directly measure attention or automatically judge focus, distraction, or task completion. The vision is not a claim that these capabilities already exist.
+Choose **Fill previews** and grant screenshot access. Pickmark opens a muted background tab in the current window and visits pages missing a preview in the current list. For bookmarks, it processes only the current page of results. Version 0.1.22 adds Chrome’s required `debugger` permission and attaches only to the temporary tab created for this job. Chrome displays a debugging banner during capture. You can keep your window at its usual size. Here is the same folder after all three captures.
 
-## What you can do
+![The same three bookmarks with saved screenshots of the star chart, type specimen, and contour map pages](docs/screenshots/0.1.22/gallery-saved-en.png)
 
-| Feature | How it works |
+- You can cancel a batch and keep pictures already saved. Pickmark skips existing previews, known webmail sites, and domains on your exclusion list. Background visits use the current Chrome profile’s sign-in state and may appear in Chrome’s own history.
+- Filling previews once leaves automatic capture off if it was off before. To save previews as you browse, enable automatic capture in Settings. Images stay on this device for up to **7 days**, with limits of **500 images and 50 MB**. Clear them in **Data & storage**.
+- Switch to the compact or comfortable list to see more titles at once. The interface supports Chinese and English, with light, dark, and system appearance.
+
+## Return to yesterday’s pages
+
+**Continue browsing** opens yesterday’s list by default. Choose another date to look further back. Open one page or reopen the set, skipping tabs that are already open. **Classify history** applies local rules to unsorted historical pages and lets you choose whether to use AI for the rest.
+
+![Yesterday’s page list with a date picker and the control for reopening pages](docs/screenshots/0.1.22/resume-en.png)
+
+Version 0.1.21 removed Daily review, duration estimates, and tab-switching paths. Daily lists retain the URLs and categories of pages that were open when collected. All tabs, bookmarks, historical entries, and websites in these screenshots were created for this demonstration.
+
+## Install the public release
+
+1. Download and extract [Pickmark-0.1.9.zip](https://github.com/abelguan02/Pickmark/releases/download/v0.1.9/Pickmark-0.1.9.zip). Keep the extracted folder in a permanent location.
+2. Open `chrome://extensions` in desktop Chrome, enable **Developer mode**, and select **Load unpacked**. Choose the folder that directly contains `manifest.json`. If you downloaded the entire repository as a source ZIP, select its `extension/` subfolder.
+3. Pin Pickmark in Chrome’s Extensions menu and click its icon to open the workspace, or select Pickmark in Chrome’s side panel. To update an existing installation, replace the program files in the original folder and click **Reload** on the same extension. Uninstalling deletes the extension’s local data. [0.1.9 installation and update guide](docs/INSTALL-UPDATE-0.1.9.md)
+
+## Data and privacy in 0.1.22
+
+| Data | How Pickmark handles it |
 | --- | --- |
-| Workspaces | View web pages currently open in regular browser windows by topic and return to their tabs; entries with the same full URL are combined into one page record |
-| Automatic organization | While the workspace is visible and recording is enabled, apply local rules first, then use configured AI for pages that need classification |
-| Daily review | Explore time distribution by website or workspace, inspect switching paths by hour or 15-minute interval, and open pages from the details view |
-| Resume browsing | Start with yesterday’s page list or select another date; reopen listed pages that are no longer open |
-| Bookmark categories | Read bookmarks after permission is granted; save categories independently without moving original folders; confirm the scope before using bookmark AI |
-| Categories and rules | Switch between tabs and bookmarks to manage their categories and rules independently; back up rules and set AI preferences |
-| Interface and controls | Chinese / English; compact list / comfortable list / preview gallery; light / dark / system theme; About & help and a replayable introduction |
+| Daily page lists | Recording starts enabled and continues locally when the dashboard is closed. Records include titles, full URLs, and categories. Choose 7, 14, or 30 days of retention, with 30 as the default. A target of 5,000 records and about 4 MB can trim older entries sooner. Pause recording, exclude sites, or clear records in Settings. |
+| AI classification | Local rules and manual grouping work without a key. When AI is enabled, Pickmark sends titles, domains, and classification context directly to your provider, which may charge for requests. Requests omit screenshots and page bodies. A visible topic workspace with recording enabled automatically processes candidates in batches of up to 200 pages. |
+| Keys and backups | Provider keys stay in this browser’s local extension storage. Rule backups can include saved AI preferences. Page records, images, and API keys are excluded from those backups. |
 
-Organization happens inside the extension panel. Existing browser tab order and tab groups stay as they are. Pickmark does not automatically close tabs or replace your new-tab page.
+Available providers include DeepSeek, OpenAI, Anthropic Claude, Google Gemini, Qwen, and Kimi. Upgrading from a version with duration tracking to 0.1.21 or later clears legacy timing data. The public 0.1.9 release has its own data collection and permission details. [Privacy notes for 0.1.9](https://github.com/abelguan02/Pickmark/blob/v0.1.9/PRIVACY.md)
 
-A daily list means “pages that were open when collected,” **not pages you necessarily read**. Time estimates and switching paths help you review your browsing; they do not judge your focus or productivity. There are currently no AI daily summaries, notes, task statuses, cloud sync, or user accounts.
+## About the project
 
-## Daily review: retrace your browsing
+Pickmark was previously named Tabtrail. Its original idea, **Attention Atlas**, grew from a familiar question at the end of a day with dozens of tabs open. Which pages did I mean to come back to?
 
-View time distribution by website or workspace for a selected date. Use the timeline to explore page switches and recorded visits. Durations are estimates to help you recall your browsing, not measures of concentration.
-
-![Daily review demo: time distribution and browsing paths](docs/review-preview-en.png)
-
-## Resume browsing: return to earlier pages
-
-The view starts with yesterday’s pages, and you can choose another date. Browse that day’s list by topic, open an individual page, or reopen listed pages that are not currently open.
-
-![Resume browsing demo: a dated page list organized by topic](docs/resume-preview-en.png)
-
-All screenshots use fictional demo data. Resume browsing restores retained page URLs, not scroll positions, forms, or window layouts.
-
-## Install: no coding required
-
-Use a recent desktop version of Chrome. You do not need Node.js, Python, or terminal commands to use the extension.
-
-1. On this repository’s page, select **Code → Download ZIP**. Extract it to a folder you plan to keep.
-2. Open `chrome://extensions` in Chrome and enable **Developer mode** in the upper-right corner.
-3. Click **Load unpacked** and select the project’s **`extension` folder**. This folder should directly contain `manifest.json`.
-4. Pin Pickmark from Chrome’s Extensions menu, then click its icon to open the full dashboard. If it is already open, the existing dashboard tab is brought forward.
-5. To use the side panel, select Pickmark from Chrome’s side panel selector.
-6. Select **English** in Settings if needed. The extension supports both Chinese and English.
-
-If this repository’s Releases page offers `Pickmark-VERSION.zip`, you can download and extract that package, then load its extracted folder directly. This differs from GitHub’s automatically generated **Source code (zip)**, which contains the entire project and requires you to select its `extension` subfolder.
-
-**Updating an existing installation:** replace the extension files in the original installation folder, click **Reload** on Chrome’s extensions page, and reopen the panel. When video-detection scripts change, refresh any open pages you are testing. Do not uninstall and reinstall to update: uninstalling deletes the extension’s local data.
-
-## First steps
-
-Open a few regular web pages, then open the extension’s workspace. Without configured rules or AI, pages generally appear in **Unsorted**.
-
-- **Start with local rules:** open **Categories & rules**, choose tabs or bookmarks, add keywords, and select a category. Keywords match page titles and domains, with no AI charges.
-- **Enable AI classification:** choose a provider and enter your API key and model in Settings. You can test the connection before saving. The test itself may incur a small charge. Bookmark AI requires a separate scope confirmation.
-- **Adjust a result:** manually change a page’s category, or create, rename, and delete categories in **Categories & rules**. Deleting a category does not close tabs or delete original bookmarks; the confirmation explains how page assignments are handled.
-- **Classify historical pages:** select a date in **Resume**, click **Classify unsorted**, and confirm the scope. Local rules run first; optionally use AI for the remaining pages. Existing categories and manual assignments are preserved without reopening tabs. Retry after a failure to process the remainder; search narrows the scope.
-- **Reclassify pages:** choose **More → Regroup**, review the scope, and confirm. This can also change manual assignments. Use search to narrow the scope.
-
-Available adapters include DeepSeek, OpenAI, Anthropic Claude, Google Gemini, Qwen (Bailian, Beijing), and Kimi (China). Model names are editable; successful requests depend on your account, the model, and your network. Additional provider notes are available in the [AI configuration guide (Chinese)](docs/AI-PROVIDERS.md).
-
-## Does automatic organization use tokens?
-
-Local keyword matching does not. Once you configure a key, pages that need AI classification are sent to your selected provider and billed according to that provider’s terms.
-
-Previously classified, unchanged pages generally reuse their results. New pages or informative title changes may also trigger another check of pending Unsorted pages. Each batch handles up to 200 pages; larger sets are split into batches. **Opening one new tab does not necessarily send only that tab’s information**: the request may also include classification context.
-
-Routine automatic organization preserves manual assignments. Closing a tab changes the page list but does not itself require cached classifications to be redone. Remaining candidates may still be processed after synchronization. Automatic retries are paused for five minutes after a failure; use **More → Sync tabs** to retry manually.
-
-## Where is the data stored?
-
-**Recording is enabled by default and uses the extension’s local storage in your current browser.** Closing the panel does not pause background local recording. Automatic AI classification requires the workspace to be open and visible. There is no developer-operated relay server or cross-device cloud sync.
-
-| Data | Current handling |
-| --- | --- |
-| Page lists | Titles, full URLs, workspace assignments, and related fields; up to the most recent 30 local calendar days and 5,000 daily page records, with an additional storage budget of about 4 MB |
-| Browsing visits | Estimated foreground page time and switching order; up to 30 days and 12,000 visits, with an additional estimated storage budget of about 4 MB |
-| AI classification input | Titles, domains, random record IDs, workspace names and reference pages, confirmed rules, and applied preferences; no separate full-URL field, page body text, or browsing duration |
-| API keys | Stored locally per provider and retained across restarts; excluded from rule backups and not protected by operating-system keychain encryption |
-
-Count and size limits can remove records earlier; a complete 30-day history is not guaranteed. Titles, workspace names, rules, and preferences may themselves contain private information, even without a separate full-URL field.
-
-Use **More → AI settings & privacy** to pause recording, exclude websites, remove keys, or clear browsing records and pause recording. AI requests already sent cannot be recalled. Further data-handling and permission details are in the [privacy policy (Chinese)](PRIVACY.md).
-
-## Limitations and common questions
-
-- **Why is time estimated?** On ordinary pages, recording pauses after five minutes without activity by default; you can choose 1, 5, 10, or 15 minutes. Foreground video playback can continue contributing time. Locking the screen or leaving Chrome pauses it. Quiet reading, autoplay, and unusual video players can affect accuracy.
-- **Can it recover history from before installation?** No. It only records pages collected after installation while recording is enabled. It does not read Chrome’s full browsing history.
-- **Does it restore an entire browsing session?** It restores retained page URLs and workspace assignments, not scroll positions, forms, login states, or window layouts.
-- **Why do old classifications remain after I delete a rule?** Removing a rule does not undo existing assignments. Use **Regroup** if you want to classify those pages again.
-- **Can I back up everything?** Import and export currently cover classification rules and optional saved AI preferences, not browsing history or all settings.
-- **Why does the local web preview not show my tabs?** The web preview uses sample data only. Load the extension through Chrome’s extensions page to access real tabs.
-
-Additional behavior details are in the [product guide (Chinese)](docs/PRODUCT.md).
-
-## Development and feedback
-
-The extension has no third-party npm dependencies at runtime. Development checks require Node.js 20+; local preview and packaging also require Python 3. Run these commands from the project root:
-
-```sh
-npm test
-npm run check
-```
-
-To run the web preview (sample data only):
-
-```sh
-npm run preview
-```
-
-Open [the local preview](http://localhost:4173/dashboard.html). Stop the server with Ctrl+C when finished. To create an installable ZIP:
-
-```sh
-npm run package
-```
-
-The package is written to `dist/Pickmark-0.1.9.zip`, with a SHA256 checksum file. Neither previewing nor packaging publishes anything to GitHub.
-
-For additional preview, browser-test, and packaging instructions, see the [contributing guide (Chinese)](CONTRIBUTING.md). Report ordinary issues and suggestions in this repository’s Issues section. Use fictional pages to reproduce problems, and do not upload API keys or private browsing records.
-
-As of September 20, 2026, 68 Node tests, static checks, and three browser-based web regression suites passed. Some Chrome API and AI request boundaries are mocked. Real extension suspension and recovery, live provider calls, unusual video players, and storage pressure still need acceptance testing. See the [validation record (Chinese)](docs/CODE-AUDIT-20260920.md).
-
-## Documentation and license
-
-Both README versions cover installation, everyday use, costs, privacy essentials, and limitations. The supplementary guides linked below are currently in Chinese.
-
-- [Privacy policy (Chinese)](PRIVACY.md) — data, permissions, and deletion controls
-- [Changelog (Chinese)](CHANGELOG.md) — changes in the current version
-- [Documentation index (Chinese)](docs/README.md) — product, development, and maintenance guides
-- [Release guide (Chinese)](docs/RELEASE.md) — GitHub publishing steps for maintainers
-
-The project uses the [MIT License](LICENSE) and retains its original attribution, Attention Atlas contributors. The [asset inventory (Chinese)](docs/ASSETS.md) records what is known about the provenance of brand graphics and demo assets.
+The Manifest V3 extension has no third-party npm runtime dependencies. For development, use Node.js 20+ and run `npm test` and `npm run check` from the repository root. Please use fictional examples in public issues and keep private titles, URLs, and API keys out of reports. [Contributing](CONTRIBUTING.md) · [Issues](https://github.com/abelguan02/Pickmark/issues) · [MIT license](LICENSE)
